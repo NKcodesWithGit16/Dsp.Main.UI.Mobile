@@ -10,7 +10,8 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { fetchLoads, fetchDrivers, fetchActivity } from '../../src/api/main';
 import ScreenHeader from '../../src/components/shared/ScreenHeader';
-import { spacing, typography, radius } from '../../src/theme/colors';
+import PageBackground from '../../src/components/shared/PageBackground';
+import { spacing, typography, radius, glass, shadow } from '../../src/theme/colors';
 
 const RANGES = ['Today', 'Week', 'Month'];
 const RANGE_MULT = { Today: 1, Week: 7, Month: 30 };
@@ -30,7 +31,9 @@ function normalizeStatus(d) {
 }
 
 export default function HomeScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const glassFill = isDark ? glass.fillDarkStrong : glass.fillLightStrong;
+  const glassBorder = isDark ? glass.borderDark : glass.borderLightSoft;
   const { userName, userId } = useAuth();
   const router = useRouter();
   const [range, setRange] = useState('Today');
@@ -78,20 +81,23 @@ export default function HomeScreen() {
 
   if (apiLoading) {
     return (
-      <SafeAreaView style={s.safe} edges={['left', 'right']}>
-        <ScreenHeader />
-        <View style={s.loadingWrap}>
-          <ActivityIndicator color={colors.accent} size="large" />
-          <Text style={[s.loadingText, { color: colors.textMuted }]}>Loading dashboard…</Text>
-        </View>
-      </SafeAreaView>
+      <PageBackground>
+        <SafeAreaView style={s.safe} edges={['left', 'right']}>
+          <ScreenHeader />
+          <View style={s.loadingWrap}>
+            <ActivityIndicator color={colors.accent} size="large" />
+            <Text style={[s.loadingText, { color: colors.textMuted }]}>Loading dashboard…</Text>
+          </View>
+        </SafeAreaView>
+      </PageBackground>
     );
   }
 
   return (
-    <SafeAreaView style={s.safe} edges={['left', 'right']}>
-      <ScreenHeader />
-      <ScrollView
+    <PageBackground>
+      <SafeAreaView style={s.safe} edges={['left', 'right']}>
+        <ScreenHeader />
+        <ScrollView
         style={s.scroll}
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
@@ -114,7 +120,7 @@ export default function HomeScreen() {
         </LinearGradient>
 
         {/* Range Tabs */}
-        <View style={[s.rangeRow, { backgroundColor: colors.surface1, borderColor: colors.border }]}>
+        <View style={[s.rangeRow, { backgroundColor: glassFill, borderColor: glassBorder }]}>
           {RANGES.map(r => (
             <TouchableOpacity key={r} style={[s.rangeTab, range === r && s.rangeTabActive]} onPress={() => setRange(r)}>
               <Text style={[s.rangeTabText, { color: range === r ? colors.accent : colors.textMuted }]}>{r}</Text>
@@ -124,19 +130,19 @@ export default function HomeScreen() {
 
         {/* KPI Grid */}
         <View style={s.kpiGrid}>
-          <KpiCard colors={colors} title="Active Drivers" value={`${activeDrivers}/${drivers.length}`}
+          <KpiCard colors={colors} isDark={isDark} title="Active Drivers" value={`${activeDrivers}/${drivers.length}`}
             sub={`${idleDrivers} idle`} gradient={['#6366f1', '#4f46e5']} icon="🚛" />
-          <KpiCard colors={colors} title="Available Loads" value={availLoads}
+          <KpiCard colors={colors} isDark={isDark} title="Available Loads" value={availLoads}
             sub={`${hotLoads} hot 🔥`} gradient={['#f59e0b', '#d97706']} icon="📋" />
-          <KpiCard colors={colors} title="Booked" value={bookedLoads}
+          <KpiCard colors={colors} isDark={isDark} title="Booked" value={bookedLoads}
             sub={range.toLowerCase()} gradient={['#10b981', '#059669']} icon="✅" />
-          <KpiCard colors={colors} title="Revenue" value={`$${(revenue / 1000).toFixed(1)}k`}
+          <KpiCard colors={colors} isDark={isDark} title="Revenue" value={`$${(revenue / 1000).toFixed(1)}k`}
             sub={range.toLowerCase()} gradient={['#8b5cf6', '#7c3aed']} icon="💰" />
         </View>
 
         {/* Alerts */}
         {(hotLoads > 0 || idleDrivers > 0) && (
-          <View style={[s.alertsCard, { backgroundColor: colors.surface1, borderColor: colors.border }]}>
+          <View style={[s.alertsCard, { backgroundColor: glassFill, borderColor: glassBorder }]}>
             <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>⚡ Needs Attention</Text>
             {hotLoads > 0 && (
               <TouchableOpacity style={[s.alertRow, { borderLeftColor: colors.danger }]} onPress={() => router.push('/(app)/loadboard')}>
@@ -166,7 +172,7 @@ export default function HomeScreen() {
         )}
 
         {/* Fleet Status */}
-        <View style={[s.card, { backgroundColor: colors.surface1, borderColor: colors.border }]}>
+        <View style={[s.card, { backgroundColor: glassFill, borderColor: glassBorder }]}>
           <View style={s.cardHeader}>
             <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>Fleet Status</Text>
             <View style={[s.utilBadge, { backgroundColor: colors.accentMuted }]}>
@@ -222,7 +228,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Activity Feed */}
-        <View style={[s.card, { backgroundColor: colors.surface1, borderColor: colors.border }]}>
+        <View style={[s.card, { backgroundColor: glassFill, borderColor: glassBorder }]}>
           <View style={s.cardHeader}>
             <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>Recent Activity</Text>
             <View style={s.liveRow}>
@@ -249,7 +255,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Load Pipeline */}
-        <View style={[s.card, { backgroundColor: colors.surface1, borderColor: colors.border }]}>
+        <View style={[s.card, { backgroundColor: glassFill, borderColor: glassBorder }]}>
           <View style={s.cardHeader}>
             <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>Load Pipeline</Text>
             <TouchableOpacity onPress={() => router.push('/(app)/loadboard')}>
@@ -300,16 +306,19 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <View style={{ height: spacing[8] }} />
-      </ScrollView>
-    </SafeAreaView>
+          <View style={{ height: spacing[8] }} />
+        </ScrollView>
+      </SafeAreaView>
+    </PageBackground>
   );
 }
 
-function KpiCard({ colors, title, value, sub, gradient, icon }) {
+function KpiCard({ colors, isDark, title, value, sub, gradient, icon }) {
+  const fill   = isDark ? glass.fillDarkStrong : glass.fillLightStrong;
+  const border = isDark ? glass.borderDark : glass.borderLightSoft;
   return (
-    <View style={[kpiS.card, { backgroundColor: colors.surface1, borderColor: colors.border }]}>
-      <LinearGradient colors={gradient} style={kpiS.iconWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+    <View style={[kpiS.card, shadow.card, { backgroundColor: fill, borderColor: border }]}>
+      <LinearGradient colors={gradient} style={[kpiS.iconWrap, shadow.glow]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <Text style={kpiS.icon}>{icon}</Text>
       </LinearGradient>
       <Text style={[kpiS.value, { color: colors.textPrimary }]}>{value}</Text>
@@ -329,7 +338,7 @@ const kpiS = StyleSheet.create({
 });
 
 const makeStyles = (c) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.pageBg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   scroll: { flex: 1 },
   content: { padding: spacing[4] },
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing[3] },
@@ -337,6 +346,7 @@ const makeStyles = (c) => StyleSheet.create({
   banner: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     borderRadius: radius['2xl'], padding: spacing[5], marginBottom: spacing[4],
+    ...shadow.cardStrong,
   },
   bannerGreet: { color: 'rgba(255,255,255,0.75)', fontSize: typography.xs, fontWeight: '600' },
   bannerName: { color: '#fff', fontSize: typography.xl, fontWeight: '800', marginTop: 2 },
@@ -355,7 +365,7 @@ const makeStyles = (c) => StyleSheet.create({
   alertTitle: { fontSize: typography.sm, fontWeight: '600' },
   alertSub: { fontSize: typography.xs, marginTop: 1 },
   alertChevron: { fontSize: 22, fontWeight: '300' },
-  card: { borderRadius: radius.xl, padding: spacing[4], marginBottom: spacing[4], borderWidth: 1 },
+  card: { borderRadius: radius.xl, padding: spacing[4], marginBottom: spacing[4], borderWidth: 1, ...shadow.card },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] },
   sectionTitle: { fontSize: typography.base, fontWeight: '700' },
   utilBadge: { paddingHorizontal: spacing[2], paddingVertical: 2, borderRadius: radius.pill },
@@ -394,7 +404,7 @@ const makeStyles = (c) => StyleSheet.create({
   loadBadgeText: { fontSize: 10, fontWeight: '700' },
   qaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
   qaCard: { width: '47%', alignItems: 'center', flexGrow: 1 },
-  qaGrad: { width: '100%', aspectRatio: 2, borderRadius: radius.xl, justifyContent: 'center', alignItems: 'center', marginBottom: spacing[2] },
+  qaGrad: { width: '100%', aspectRatio: 2, borderRadius: radius.xl, justifyContent: 'center', alignItems: 'center', marginBottom: spacing[2], ...shadow.glow },
   qaIcon: { fontSize: 28 },
   qaLabel: { fontSize: typography.xs, fontWeight: '700', textAlign: 'center' },
 });

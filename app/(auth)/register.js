@@ -5,12 +5,17 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTheme } from '../../src/context/ThemeContext';
 import { registerAccount } from '../../src/api/auth';
-import { radius, spacing, typography } from '../../src/theme/colors';
+import {
+  radius, spacing, typography, gradients, shadow,
+} from '../../src/theme/colors';
+import AuthBackground from '../../src/components/shared/AuthBackground';
+import GlassCard from '../../src/components/shared/GlassCard';
 
 const schema = z.object({
   name: z.string().min(2, 'Min 2 characters'),
@@ -23,9 +28,18 @@ const schema = z.object({
   path: ['confirmPassword'],
 });
 
+const FIELDS = [
+  { name: 'name',            label: 'Full Name',        placeholder: 'John Smith',          icon: '👤', autoCapitalize: 'words' },
+  { name: 'companyName',     label: 'Company Name',     placeholder: 'Acme Trucking LLC',   icon: '🏢', autoCapitalize: 'words' },
+  { name: 'email',           label: 'Email',            placeholder: 'you@company.com',     icon: '@',  keyboardType: 'email-address', autoCapitalize: 'none' },
+  { name: 'password',        label: 'Password',         placeholder: '••••••••',            icon: '🔒', secureTextEntry: true, autoCapitalize: 'none' },
+  { name: 'confirmPassword', label: 'Confirm Password', placeholder: '••••••••',            icon: '🔒', secureTextEntry: true, autoCapitalize: 'none' },
+];
+
 export default function RegisterScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
 
   const { control, handleSubmit, formState: { errors } } = useForm({
@@ -37,7 +51,9 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await registerAccount(data);
-      Alert.alert('Account Created', 'You can now sign in.', [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]);
+      Alert.alert('Account Created', 'You can now sign in.', [
+        { text: 'OK', onPress: () => router.replace('/(auth)/login') },
+      ]);
     } catch (e) {
       Alert.alert('Registration Failed', e.message || 'Please try again.');
     } finally {
@@ -45,90 +61,152 @@ export default function RegisterScreen() {
     }
   };
 
-  const s = makeStyles(colors);
-
-  const Field = ({ name, label, placeholder, keyboardType, secureTextEntry, autoCapitalize }) => (
-    <View style={s.field}>
-      <Text style={s.label}>{label}</Text>
-      <Controller
-        control={control}
-        name={name}
-        render={({ field: { onChange, value, onBlur } }) => (
-          <TextInput
-            style={[s.input, errors[name] && s.inputError]}
-            placeholder={placeholder}
-            placeholderTextColor={colors.textDisabled}
-            keyboardType={keyboardType || 'default'}
-            secureTextEntry={secureTextEntry}
-            autoCapitalize={autoCapitalize || 'words'}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            value={value}
-          />
-        )}
-      />
-      {errors[name] && <Text style={s.errorText}>{errors[name].message}</Text>}
-    </View>
-  );
+  const inputBg = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)';
 
   return (
-    <LinearGradient colors={['#08090e', '#11141c', '#1a1f2e']} style={s.gradient}>
+    <AuthBackground>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-
-          <View style={s.header}>
-            <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-              <Text style={s.backText}>← Back</Text>
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing[4] }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backWrap}>
+              <View style={[styles.backBtn, {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.7)',
+                borderColor: colors.border,
+              }]}>
+                <Text style={[styles.backIcon, { color: colors.accent }]}>‹</Text>
+              </View>
+              <Text style={[styles.backText, { color: colors.textSecondary }]}>Back</Text>
             </TouchableOpacity>
-            <Text style={s.logoText}>dispatch<Text style={{ color: colors.accent }}>R</Text></Text>
+            <Text style={[styles.logoText, { color: colors.textPrimary }]}>
+              dispatch<Text style={{ color: colors.accent }}>R</Text>
+            </Text>
           </View>
 
-          <View style={s.card}>
-            <Text style={s.title}>Create account</Text>
-            <Text style={s.subtitle}>Start managing your fleet today</Text>
+          {/* Hero copy */}
+          <View style={styles.heroCopy}>
+            <Text style={[styles.heroEyebrow, { color: colors.accent }]}>GET STARTED</Text>
+            <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Create your account</Text>
+            <Text style={[styles.heroSub, { color: colors.textMuted }]}>
+              Start managing your fleet, loads, and freight in minutes.
+            </Text>
+          </View>
 
-            <Field name="name" label="Full Name" placeholder="John Smith" />
-            <Field name="companyName" label="Company Name" placeholder="Acme Trucking LLC" />
-            <Field name="email" label="Email" placeholder="you@company.com" keyboardType="email-address" autoCapitalize="none" />
-            <Field name="password" label="Password" placeholder="••••••••" secureTextEntry autoCapitalize="none" />
-            <Field name="confirmPassword" label="Confirm Password" placeholder="••••••••" secureTextEntry autoCapitalize="none" />
+          {/* Card */}
+          <GlassCard accent variant="strong" cornerRadius={radius['2xl']} contentStyle={styles.card}>
+            {FIELDS.map(f => (
+              <View key={f.name} style={styles.field}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>{f.label}</Text>
+                <Controller
+                  control={control}
+                  name={f.name}
+                  render={({ field: { onChange, value, onBlur } }) => (
+                    <View style={[
+                      styles.inputWrap,
+                      { backgroundColor: inputBg, borderColor: errors[f.name] ? '#ef4444' : colors.border },
+                    ]}>
+                      <Text style={styles.inputIcon}>{f.icon}</Text>
+                      <TextInput
+                        style={[styles.input, { color: colors.textPrimary }]}
+                        placeholder={f.placeholder}
+                        placeholderTextColor={colors.textDisabled}
+                        keyboardType={f.keyboardType || 'default'}
+                        secureTextEntry={f.secureTextEntry}
+                        autoCapitalize={f.autoCapitalize || 'words'}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        value={value}
+                      />
+                    </View>
+                  )}
+                />
+                {errors[f.name] && <Text style={styles.errorText}>{errors[f.name].message}</Text>}
+              </View>
+            ))}
 
-            <TouchableOpacity style={s.btn} onPress={handleSubmit(onSubmit)} disabled={loading} activeOpacity={0.85}>
-              <LinearGradient colors={['#6366f1', '#4f46e5']} style={s.btnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Create Account</Text>}
+            {/* Submit */}
+            <TouchableOpacity onPress={handleSubmit(onSubmit)} disabled={loading} activeOpacity={0.85}>
+              <LinearGradient
+                colors={gradients.brand}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={[styles.btn, shadow.glow, loading && { opacity: 0.85 }]}
+              >
+                {loading
+                  ? <ActivityIndicator color="#fff" />
+                  : <>
+                      <Text style={styles.btnText}>Create Account</Text>
+                      <Text style={styles.btnArrow}>→</Text>
+                    </>}
               </LinearGradient>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => router.push('/(auth)/login')} style={s.linkRow}>
-              <Text style={s.linkText}>Already have an account? <Text style={s.link}>Sign in</Text></Text>
+            {/* Sign in link */}
+            <TouchableOpacity onPress={() => router.push('/(auth)/login')} style={styles.linkRow}>
+              <Text style={[styles.linkText, { color: colors.textMuted }]}>
+                Already have an account? <Text style={[styles.link, { color: colors.accent }]}>Sign in</Text>
+              </Text>
             </TouchableOpacity>
-          </View>
+          </GlassCard>
 
+          {/* Tiny legal */}
+          <Text style={[styles.legal, { color: colors.textDisabled }]}>
+            By creating an account you agree to the Terms of Service and Privacy Policy.
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </AuthBackground>
   );
 }
 
-const makeStyles = (c) => StyleSheet.create({
-  gradient: { flex: 1 },
-  scroll: { flexGrow: 1, padding: spacing[5], paddingTop: 60 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[6] },
-  backBtn: { padding: spacing[2] },
-  backText: { color: c.accent, fontSize: typography.base, fontWeight: '600' },
-  logoText: { color: c.textPrimary, fontSize: typography.lg, fontWeight: '800' },
-  card: { backgroundColor: c.surface1, borderRadius: radius['2xl'], padding: spacing[6], borderWidth: 1, borderColor: c.border },
-  title: { color: c.textPrimary, fontSize: typography.xl, fontWeight: '700', marginBottom: 4 },
-  subtitle: { color: c.textMuted, fontSize: typography.sm, marginBottom: spacing[5] },
+const styles = StyleSheet.create({
+  scroll: { flexGrow: 1, padding: spacing[5], paddingBottom: spacing[8] },
+
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[5] },
+  backWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 999, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  backIcon: { fontSize: 24, fontWeight: '300', marginTop: -3 },
+  backText: { fontSize: typography.sm, fontWeight: '700' },
+  logoText: { fontSize: typography.lg, fontWeight: '800', letterSpacing: -0.4 },
+
+  heroCopy: { marginBottom: spacing[5] },
+  heroEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
+  heroTitle: { fontSize: typography['2xl'], fontWeight: '800', letterSpacing: -0.6, marginBottom: 4 },
+  heroSub: { fontSize: typography.sm, fontWeight: '500', lineHeight: 20, maxWidth: 320 },
+
+  card: { padding: spacing[6], gap: 0 },
+
   field: { marginBottom: spacing[4] },
-  label: { color: c.textSecondary, fontSize: typography.sm, fontWeight: '600', marginBottom: spacing[1] },
-  input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: spacing[4], paddingVertical: spacing[3], color: c.textPrimary, fontSize: typography.base },
-  inputError: { borderColor: c.danger },
-  errorText: { color: c.danger, fontSize: typography.xs, marginTop: 4 },
-  btn: { borderRadius: radius.md, overflow: 'hidden', marginTop: spacing[2] },
-  btnGrad: { paddingVertical: spacing[4], alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: typography.base, fontWeight: '700' },
-  linkRow: { alignItems: 'center', marginTop: spacing[4] },
-  linkText: { color: c.textMuted, fontSize: typography.sm },
-  link: { color: c.accent, fontWeight: '600' },
+  label: { fontSize: typography.sm, fontWeight: '700', marginBottom: spacing[1] },
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1.5, borderRadius: radius.md,
+    paddingHorizontal: spacing[3],
+  },
+  inputIcon: { fontSize: 14, opacity: 0.55 },
+  input: {
+    flex: 1, paddingVertical: spacing[3],
+    fontSize: typography.base, fontWeight: '500',
+  },
+  errorText: { color: '#ef4444', fontSize: typography.xs, marginTop: 4, fontWeight: '600' },
+
+  btn: {
+    paddingVertical: spacing[4], borderRadius: radius.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: spacing[2],
+  },
+  btnText: { color: '#fff', fontSize: typography.base, fontWeight: '800', letterSpacing: 0.3 },
+  btnArrow: { color: '#fff', fontSize: 18, fontWeight: '300' },
+
+  linkRow: { alignItems: 'center', marginTop: spacing[5] },
+  linkText: { fontSize: typography.sm, fontWeight: '500' },
+  link: { fontWeight: '800' },
+
+  legal: { textAlign: 'center', marginTop: spacing[5], fontSize: 11, fontWeight: '500', lineHeight: 16, paddingHorizontal: spacing[5] },
 });

@@ -89,3 +89,88 @@ export const radius = {
   '2xl': 22,
   pill: 999,
 };
+
+/* ──────────────────────────────────────────────
+   Premium UI tokens — glass, gradients, shadows
+   ────────────────────────────────────────────── */
+
+export const gradients = {
+  // Page background washes (subtle, behind content)
+  pageHeroLight: ['#dbe1f8', '#e1e6fb', '#e6ecff'],
+  pageHeroDark:  ['#0a0d14', '#0c1020', '#0a0d14'],
+
+  // Brand accents
+  brand:         ['#6366f1', '#4f46e5'],
+  brandSoft:     ['#818cf8', '#6366f1', '#4f46e5'],
+  violet:        ['#7c3aed', '#6366f1'],
+  indigoViolet:  ['#6366f1', '#8b5cf6'],
+  cyan:          ['#06b6d4', '#0891b2'],
+  amber:         ['#f59e0b', '#d97706'],
+  success:       ['#10b981', '#059669'],
+  danger:        ['#ef4444', '#dc2626'],
+
+  // Hero pills — used by GradientHeader
+  heroPrimary:   ['#4f46e5', '#6366f1', '#818cf8'],
+  heroAi:        ['#7c3aed', '#6366f1'],
+  heroDispatch:  ['#4f46e5', '#6366f1'],
+
+  // Subtle overlay tints for cards
+  glassWashLight: ['rgba(255,255,255,0.78)', 'rgba(255,255,255,0.55)'],
+  glassWashDark:  ['rgba(18,22,38,0.72)', 'rgba(12,18,35,0.55)'],
+};
+
+// expo-blur intensities by platform — iOS gets lighter, Android pushes harder
+// since BlurView on Android is more rendered-fill than true backdrop blur.
+export const glass = {
+  // Light mode tints used as the fill *over* the BlurView
+  fillLight:        'rgba(255,255,255,0.62)',
+  fillLightStrong:  'rgba(255,255,255,0.78)',
+  fillLightFloat:   'rgba(255,255,255,0.85)',
+  borderLight:      'rgba(255,255,255,0.85)',
+  borderLightSoft:  'rgba(99,102,241,0.18)',
+
+  // Dark mode tints
+  fillDark:        'rgba(18,22,38,0.66)',
+  fillDarkStrong:  'rgba(18,22,38,0.78)',
+  fillDarkFloat:   'rgba(18,22,38,0.88)',
+  borderDark:      'rgba(255,255,255,0.08)',
+  borderDarkSoft:  'rgba(99,102,241,0.25)',
+
+  // BlurView intensities (iOS, Android)
+  blurIosLight: 60,
+  blurAndLight: 90,
+  blurIosDark:  72,
+  blurAndDark:  100,
+};
+
+// Shadow presets — elevation on Android, shadow* on iOS.
+export const shadow = {
+  card: {
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  cardStrong: {
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
+    elevation: 8,
+  },
+  floating: {
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 26,
+    elevation: 10,
+  },
+  glow: {
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+};

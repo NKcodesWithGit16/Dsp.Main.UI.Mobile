@@ -6,8 +6,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/context/ThemeContext';
-import { spacing, typography, radius } from '../../src/theme/colors';
+import { spacing, typography, radius, gradients, glass, shadow } from '../../src/theme/colors';
 import { fetchLoads, fetchDrivers } from '../../src/api/main';
+import GradientHeader from '../../src/components/shared/GradientHeader';
+import GlassCard from '../../src/components/shared/GlassCard';
+import PageBackground from '../../src/components/shared/PageBackground';
 
 const SUGGESTED_PROMPTS = [
   { icon: '🔥', text: 'What are my hot loads?' },
@@ -72,7 +75,9 @@ async function callAI(messages, loads, drivers) {
 }
 
 export default function AiChatScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const glassFill   = isDark ? glass.fillDarkStrong : glass.fillLightStrong;
+  const glassBorder = isDark ? glass.borderDark : glass.borderLightSoft;
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -119,27 +124,30 @@ export default function AiChatScreen() {
   const s = makeStyles(colors);
 
   return (
+    <PageBackground>
     <SafeAreaView style={s.safe} edges={['left', 'right']}>
       {/* Header */}
-      <LinearGradient colors={['#4f46e5', '#6366f1', '#818cf8']} style={s.header}>
-        <View style={s.aiAvatar}>
-          <Text style={s.aiAvatarIcon}>✦</Text>
-          {loading && <View style={[s.loadingRing, { borderColor: 'rgba(255,255,255,0.5)' }]} />}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={s.headerTitle}>AI Dispatcher</Text>
-          <Text style={s.headerSub}>{loading ? 'Thinking…' : 'Your logistics assistant'}</Text>
-        </View>
-        {messages.length > 0 && (
+      <GradientHeader
+        gradient={gradients.heroAi}
+        eyebrow="AI Dispatcher"
+        title="Logistics copilot"
+        subtitle={loading ? 'Thinking…' : 'Powered by Claude'}
+        centerSlot={
+          <View style={s.aiAvatar}>
+            <Text style={s.aiAvatarIcon}>✦</Text>
+            {loading && <View style={[s.loadingRing, { borderColor: 'rgba(255,255,255,0.5)' }]} />}
+          </View>
+        }
+        rightSlot={messages.length > 0 ? (
           <TouchableOpacity
             style={s.clearBtn}
             onPress={() => setMessages([])}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>🗑️</Text>
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 0.3 }}>Clear</Text>
           </TouchableOpacity>
-        )}
-      </LinearGradient>
+        ) : null}
+      />
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         {messages.length === 0 ? (
@@ -153,12 +161,15 @@ export default function AiChatScreen() {
               {SUGGESTED_PROMPTS.map((p, i) => (
                 <TouchableOpacity
                   key={i}
-                  style={[s.promptChip, { backgroundColor: colors.surface1, borderColor: colors.border }]}
                   onPress={() => send(p.text)}
                   activeOpacity={0.8}
+                  style={{ width: '100%' }}
                 >
-                  <Text style={s.promptIcon}>{p.icon}</Text>
-                  <Text style={[s.promptText, { color: colors.textSecondary }]}>{p.text}</Text>
+                  <GlassCard accent cornerRadius={radius.xl} contentStyle={s.promptChipInner}>
+                    <Text style={s.promptIcon}>{p.icon}</Text>
+                    <Text style={[s.promptText, { color: colors.textSecondary }]}>{p.text}</Text>
+                    <Text style={[s.promptChev, { color: colors.textMuted }]}>›</Text>
+                  </GlassCard>
                 </TouchableOpacity>
               ))}
             </View>
@@ -183,7 +194,7 @@ export default function AiChatScreen() {
                       <Text style={[s.msgText, { color: '#fff' }]}>{m.content}</Text>
                     </LinearGradient>
                   ) : (
-                    <View style={[s.msgBubble, s.aiBubble, { backgroundColor: colors.surface1, borderColor: m.isError ? colors.danger : colors.border }]}>
+                    <View style={[s.msgBubble, s.aiBubble, { backgroundColor: glassFill, borderColor: m.isError ? colors.danger : glassBorder }]}>
                       <Text style={[s.msgText, { color: colors.textPrimary }]}>{m.content}</Text>
                     </View>
                   )}
@@ -210,7 +221,7 @@ export default function AiChatScreen() {
                 <LinearGradient colors={['#4f46e5', '#6366f1']} style={s.msgAvatar}>
                   <Text style={s.msgAvatarIcon}>✦</Text>
                 </LinearGradient>
-                <View style={[s.typingBubble, { backgroundColor: colors.surface1, borderColor: colors.border }]}>
+                <View style={[s.typingBubble, { backgroundColor: glassFill, borderColor: glassBorder }]}>
                   <View style={s.typingDots}>
                     {[0, 1, 2].map(i => (
                       <View key={i} style={[s.dot, { backgroundColor: colors.accent }]} />
@@ -223,9 +234,9 @@ export default function AiChatScreen() {
         )}
 
         {/* Input */}
-        <View style={[s.inputWrap, { backgroundColor: colors.surface1, borderTopColor: colors.border }]}>
+        <View style={[s.inputWrap, { backgroundColor: glassFill, borderTopColor: glassBorder }]}>
           <TextInput
-            style={[s.input, { backgroundColor: colors.surface2, borderColor: colors.border, color: colors.textPrimary }]}
+            style={[s.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.85)', borderColor: glassBorder, color: colors.textPrimary }]}
             placeholder="Ask about your fleet, loads, drivers…"
             placeholderTextColor={colors.textDisabled}
             value={input}
@@ -250,18 +261,24 @@ export default function AiChatScreen() {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </PageBackground>
   );
 }
 
 const makeStyles = (c) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.pageBg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing[4], paddingTop: 56, paddingBottom: spacing[4], gap: spacing[3] },
+  promptChipInner: { flexDirection: 'row', alignItems: 'center', padding: spacing[4], gap: spacing[3] },
+  promptChev: { fontSize: 18, fontWeight: '300' },
   aiAvatar: { width: 42, height: 42, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   aiAvatarIcon: { color: '#fff', fontSize: 22, fontWeight: '700' },
   loadingRing: { position: 'absolute', width: 48, height: 48, borderRadius: 99, borderWidth: 2 },
   headerTitle: { color: '#fff', fontSize: typography.base, fontWeight: '700' },
   headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: typography.xs, marginTop: 1 },
-  clearBtn: { width: 34, height: 34, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  clearBtn: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.18)',
+  },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing[6] },
   emptyIcon: { width: 72, height: 72, borderRadius: radius.pill, justifyContent: 'center', alignItems: 'center', marginBottom: spacing[4] },
   emptyIconText: { color: '#fff', fontSize: 32 },
@@ -289,6 +306,6 @@ const makeStyles = (c) => StyleSheet.create({
   dot: { width: 7, height: 7, borderRadius: 99 },
   inputWrap: { flexDirection: 'row', padding: spacing[3], borderTopWidth: 1, gap: spacing[2] },
   input: { flex: 1, borderRadius: radius.xl, paddingHorizontal: spacing[4], paddingVertical: spacing[3], borderWidth: 1, fontSize: typography.sm, maxHeight: 120 },
-  sendBtnWrap: { borderRadius: radius.pill, overflow: 'hidden', marginTop: 'auto' },
+  sendBtnWrap: { borderRadius: radius.pill, overflow: 'hidden', marginTop: 'auto', ...shadow.glow },
   sendBtn: { width: 44, height: 44, borderRadius: radius.pill, justifyContent: 'center', alignItems: 'center' },
 });

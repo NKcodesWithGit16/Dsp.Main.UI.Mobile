@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/context/ThemeContext';
 import { fetchLoads, fetchDrivers } from '../../src/api/main';
 import ScreenHeader from '../../src/components/shared/ScreenHeader';
-import { spacing, typography, radius } from '../../src/theme/colors';
+import PageBackground from '../../src/components/shared/PageBackground';
+import { spacing, typography, radius, glass, shadow } from '../../src/theme/colors';
 
 const EQUIPMENT_TYPES = ['All', '53FT Dry Van', 'Reefer', 'Flatbed', 'Power Only'];
 const PAGE_SIZE = 20;
@@ -39,7 +40,9 @@ function relativeTime(dateStr) {
 const LIFECYCLE_STEPS = ['Posted', 'Booked', 'Dispatched', 'In Transit', 'Delivered', 'POD'];
 
 export default function LoadboardScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const glassFill   = isDark ? glass.fillDarkStrong : glass.fillLightStrong;
+  const glassBorder = isDark ? glass.borderDark : glass.borderLightSoft;
   const [allLoads, setAllLoads] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [apiLoading, setApiLoading] = useState(true);
@@ -133,7 +136,8 @@ export default function LoadboardScreen() {
   }, [favorites, colors]);
 
   return (
-    <SafeAreaView style={[s.safe, { backgroundColor: colors.pageBg }]} edges={['left', 'right']}>
+    <PageBackground>
+    <SafeAreaView style={[s.safe, { backgroundColor: 'transparent' }]} edges={['left', 'right']}>
       <ScreenHeader title="Loadboard" subtitle={apiLoading ? '…' : `${filtered.length} loads`} />
 
       {/* Stats Bar */}
@@ -153,7 +157,7 @@ export default function LoadboardScreen() {
 
       {/* Search */}
       <View style={s.controlRow}>
-        <View style={[s.searchWrap, { backgroundColor: colors.surface1, borderColor: colors.border }]}>
+        <View style={[s.searchWrap, { backgroundColor: glassFill, borderColor: glassBorder }]}>
           <Text style={s.searchIcon}>🔍</Text>
           <TextInput
             style={[s.searchInput, { color: colors.textPrimary }]}
@@ -169,7 +173,7 @@ export default function LoadboardScreen() {
           )}
         </View>
         <TouchableOpacity
-          style={[s.filterBtn, { backgroundColor: showFilters ? colors.accentMuted : colors.surface1, borderColor: showFilters ? colors.accent : colors.border }]}
+          style={[s.filterBtn, { backgroundColor: showFilters ? colors.accentMuted : glassFill, borderColor: showFilters ? colors.accent : glassBorder }]}
           onPress={() => setShowFilters(v => !v)}
         >
           <Text style={{ color: showFilters ? colors.accent : colors.textMuted }}>⚙</Text>
@@ -181,7 +185,7 @@ export default function LoadboardScreen() {
           {EQUIPMENT_TYPES.map(e => (
             <TouchableOpacity
               key={e}
-              style={[s.equipChip, { backgroundColor: equipFilter === e ? colors.accentMuted : colors.surface1, borderColor: equipFilter === e ? colors.accent : colors.border }]}
+              style={[s.equipChip, { backgroundColor: equipFilter === e ? colors.accentMuted : glassFill, borderColor: equipFilter === e ? colors.accent : glassBorder }]}
               onPress={() => setEquipFilter(e)}
             >
               <Text style={[s.equipChipText, { color: equipFilter === e ? colors.accent : colors.textMuted }]}>{e}</Text>
@@ -223,12 +227,14 @@ export default function LoadboardScreen() {
           load={selectedLoad}
           onClose={() => setSelectedLoad(null)}
           colors={colors}
+          isDark={isDark}
           favorites={favorites}
           toggleFav={toggleFav}
           drivers={drivers}
         />
       )}
     </SafeAreaView>
+    </PageBackground>
   );
 }
 
@@ -392,7 +398,7 @@ const makeStyles = (c) => StyleSheet.create({
   safe: { flex: 1 },
   statsScroll: { flexGrow: 0 },
   statsContent: { paddingHorizontal: spacing[4], paddingVertical: spacing[3], gap: spacing[2] },
-  statChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.lg, borderWidth: 1, alignItems: 'center', minWidth: 80 },
+  statChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.lg, borderWidth: 1.5, alignItems: 'center', minWidth: 84, ...shadow.card },
   statValue: { fontSize: typography.base, fontWeight: '800' },
   statLabel: { fontSize: 10, marginTop: 1 },
   controlRow: { flexDirection: 'row', paddingHorizontal: spacing[4], paddingBottom: spacing[3], gap: spacing[2] },
@@ -466,7 +472,7 @@ const makeStyles = (c) => StyleSheet.create({
   bestBadge: { paddingHorizontal: spacing[2], paddingVertical: 2, borderRadius: radius.pill },
   bestBadgeText: { fontSize: 10, fontWeight: '700' },
   actionRow: { gap: spacing[3], paddingBottom: spacing[6] },
-  bookBtnWrap: { borderRadius: radius.lg, overflow: 'hidden' },
+  bookBtnWrap: { borderRadius: radius.lg, overflow: 'hidden', ...shadow.glow },
   bookBtn: { paddingVertical: spacing[4], alignItems: 'center' },
   bookBtnText: { color: '#fff', fontSize: typography.base, fontWeight: '700' },
   saveBtn: { borderRadius: radius.lg, paddingVertical: spacing[4], alignItems: 'center', borderWidth: 1 },

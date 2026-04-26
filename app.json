@@ -18,6 +18,10 @@
       "bundleIdentifier": "com.dispatchr.app",
       "config": {
         "googleMapsApiKey": "REDACTED_GOOGLE_MAPS_KEY"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "DispatchR uses your location to show your position on the map and share ETA with your dispatcher.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "DispatchR uses your location to share live position and ETA with your dispatcher while you drive."
       }
     },
     "android": {
@@ -30,7 +34,11 @@
         "googleMaps": {
           "apiKey": "REDACTED_GOOGLE_MAPS_KEY"
         }
-      }
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -42,6 +50,12 @@
         "expo-document-picker",
         {
           "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "DispatchR uses your location to share live position and ETA with your dispatcher while you drive."
         }
       ]
     ]

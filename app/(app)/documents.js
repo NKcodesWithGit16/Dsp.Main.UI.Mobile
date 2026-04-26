@@ -7,7 +7,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/context/ThemeContext';
 import ScreenHeader from '../../src/components/shared/ScreenHeader';
-import { spacing, typography, radius } from '../../src/theme/colors';
+import PageBackground from '../../src/components/shared/PageBackground';
+import { spacing, typography, radius, glass, shadow } from '../../src/theme/colors';
 
 const CATEGORIES = ['All', 'Bill of Lading', 'Rate Confirmation', 'Invoice', 'Insurance', 'Contract', 'Other'];
 const CATEGORY_COLORS = {
@@ -41,7 +42,9 @@ function expiryLabel(iso) {
 }
 
 export default function DocumentsScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const glassFill   = isDark ? glass.fillDarkStrong : glass.fillLightStrong;
+  const glassBorder = isDark ? glass.borderDark : glass.borderLightSoft;
   const [docs, setDocs] = useState([]);
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState('');
@@ -171,7 +174,7 @@ export default function DocumentsScreen() {
     // Grid card
     return (
       <TouchableOpacity
-        style={[s.gridCard, { backgroundColor: colors.surface1, borderColor: isSelected ? colors.accent : colors.border }]}
+        style={[s.gridCard, { backgroundColor: glassFill, borderColor: isSelected ? colors.accent : glassBorder }]}
         onPress={() => selected.size > 0 ? toggleSelect(doc.id) : setPreviewDoc(doc)}
         onLongPress={() => toggleSelect(doc.id)}
         activeOpacity={0.8}
@@ -212,13 +215,14 @@ export default function DocumentsScreen() {
   const allDocs = [...pinnedDocs, ...regularDocs];
 
   return (
+    <PageBackground>
     <SafeAreaView style={s.safe} edges={['left', 'right']}>
       <ScreenHeader title="Documents" subtitle={`${filtered.length} of ${docs.length} files`} />
 
       {/* Controls */}
       <View style={s.controlsWrap}>
         <View style={s.searchRow}>
-          <View style={[s.searchBox, { backgroundColor: colors.surface1, borderColor: colors.border }]}>
+          <View style={[s.searchBox, { backgroundColor: glassFill, borderColor: glassBorder }]}>
             <Text style={s.searchIcon}>🔍</Text>
             <TextInput
               style={[s.searchInput, { color: colors.textPrimary }]}
@@ -228,13 +232,13 @@ export default function DocumentsScreen() {
               onChangeText={setSearch}
             />
           </View>
-          <TouchableOpacity style={[s.iconBtn, { backgroundColor: colors.surface1, borderColor: colors.border }]} onPress={() => setViewMode(v => v === 'grid' ? 'list' : 'grid')}>
+          <TouchableOpacity style={[s.iconBtn, { backgroundColor: glassFill, borderColor: glassBorder }]} onPress={() => setViewMode(v => v === 'grid' ? 'list' : 'grid')}>
             <Text>{viewMode === 'grid' ? '☰' : '⊞'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[s.iconBtn, { backgroundColor: colors.surface1, borderColor: colors.border }]} onPress={() => setShowSort(v => !v)}>
+          <TouchableOpacity style={[s.iconBtn, { backgroundColor: glassFill, borderColor: glassBorder }]} onPress={() => setShowSort(v => !v)}>
             <Text>↕️</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[s.uploadBtn, { backgroundColor: colors.accentDark }]} onPress={handleUpload}>
+          <TouchableOpacity style={[s.uploadBtn, { backgroundColor: colors.accentDark, ...shadow.glow }]} onPress={handleUpload}>
             <Text style={s.uploadBtnText}>+ Add</Text>
           </TouchableOpacity>
         </View>
@@ -242,7 +246,7 @@ export default function DocumentsScreen() {
         {showSort && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.sortScroll} contentContainerStyle={{ gap: spacing[2], paddingHorizontal: spacing[4] }}>
             {SORTS.map(s2 => (
-              <TouchableOpacity key={s2} style={[s.sortChip, { backgroundColor: sort === s2 ? colors.accentMuted : colors.surface1, borderColor: sort === s2 ? colors.accent : colors.border }]} onPress={() => { setSort(s2); setShowSort(false); }}>
+              <TouchableOpacity key={s2} style={[s.sortChip, { backgroundColor: sort === s2 ? colors.accentMuted : glassFill, borderColor: sort === s2 ? colors.accent : glassBorder }]} onPress={() => { setSort(s2); setShowSort(false); }}>
                 <Text style={[s.sortChipText, { color: sort === s2 ? colors.accent : colors.textMuted }]}>{s2}</Text>
               </TouchableOpacity>
             ))}
@@ -257,7 +261,7 @@ export default function DocumentsScreen() {
             return (
               <TouchableOpacity
                 key={cat}
-                style={[s.catTab, { borderColor: category === cat ? color : colors.border, backgroundColor: category === cat ? color + '22' : colors.surface1 }]}
+                style={[s.catTab, { borderColor: category === cat ? color : glassBorder, backgroundColor: category === cat ? color + '22' : glassFill }]}
                 onPress={() => setCategory(cat)}
               >
                 {cat !== 'All' && <View style={[s.catDot, { backgroundColor: color }]} />}
@@ -377,12 +381,13 @@ export default function DocumentsScreen() {
         </Modal>
       )}
     </SafeAreaView>
+    </PageBackground>
   );
 }
 
 const makeStyles = (c) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.pageBg },
-  controlsWrap: { backgroundColor: c.surface1, borderBottomWidth: 1, borderBottomColor: c.border },
+  safe: { flex: 1, backgroundColor: 'transparent' },
+  controlsWrap: { borderBottomWidth: 1, borderBottomColor: 'rgba(99,102,241,0.12)', paddingTop: spacing[3] },
   searchRow: { flexDirection: 'row', padding: spacing[3], gap: spacing[2], alignItems: 'center' },
   searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, paddingHorizontal: spacing[3], borderWidth: 1, gap: spacing[1] },
   searchIcon: { fontSize: 13 },
@@ -401,7 +406,7 @@ const makeStyles = (c) => StyleSheet.create({
   catCount: { fontSize: 10, fontWeight: '700' },
   gridRow: { paddingHorizontal: spacing[3], gap: spacing[3] },
   gridContent: { paddingTop: spacing[3] },
-  gridCard: { flex: 1, borderRadius: radius.xl, borderWidth: 1, padding: spacing[3], marginBottom: spacing[3], position: 'relative' },
+  gridCard: { flex: 1, borderRadius: radius.xl, borderWidth: 1, padding: spacing[3], marginBottom: spacing[3], position: 'relative', ...shadow.card },
   pinIcon: { position: 'absolute', top: spacing[2], left: spacing[2], fontSize: 12 },
   gridCheckbox: { position: 'absolute', top: spacing[2], right: spacing[2], width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
   gridThumb: { height: 80, borderRadius: radius.lg, justifyContent: 'center', alignItems: 'center', marginBottom: spacing[2], position: 'relative' },

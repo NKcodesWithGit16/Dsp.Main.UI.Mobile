@@ -14,7 +14,8 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { fetchDrivers, fetchDriverChat, sendChatMessage, inviteDriver } from '../../src/api/main';
 import ScreenHeader from '../../src/components/shared/ScreenHeader';
-import { spacing, typography, radius } from '../../src/theme/colors';
+import PageBackground from '../../src/components/shared/PageBackground';
+import { spacing, typography, radius, glass, shadow } from '../../src/theme/colors';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const STATUS_TABS = ['All', 'Moving', 'Idle', 'Offline'];
@@ -97,7 +98,9 @@ function MapPlaceholder({ drivers, selectedDriver, onSelect, colors }) {
 }
 
 export default function DriversScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const glassFill   = isDark ? glass.fillDarkStrong : glass.fillLightStrong;
+  const glassBorder = isDark ? glass.borderDark : glass.borderLightSoft;
   const { userId } = useAuth();
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
@@ -193,9 +196,10 @@ export default function DriversScreen() {
     count: t === 'All' ? drivers.length : drivers.filter(d => d.status === t.toLowerCase()).length,
   }));
 
-  const s = makeStyles(colors, insets);
+  const s = makeStyles(colors, insets, isDark);
 
   return (
+    <PageBackground>
     <SafeAreaView style={s.safe} edges={['left', 'right']}>
       <ScreenHeader title="Drivers" subtitle={apiLoading ? '…' : `${drivers.length} total`} />
 
@@ -219,7 +223,7 @@ export default function DriversScreen() {
 
         {/* Selected Driver floating card */}
         {selectedDriver && (
-          <View style={[s.floatingCard, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
+          <View style={s.floatingCard}>
             <LinearGradient colors={['#6366f1', '#4f46e5']} style={s.floatingAvatar}>
               <Text style={s.floatingAvatarText}>{selectedDriver.initials}</Text>
               <View style={[s.floatingDot, { backgroundColor: STATUS_COLORS[selectedDriver.status] || '#6b7280' }]} />
@@ -245,7 +249,10 @@ export default function DriversScreen() {
       </View>
 
       {/* Bottom Sheet */}
-      <View style={[s.sheet, sheetExpanded && s.sheetExpanded, { backgroundColor: colors.surface1, borderTopColor: colors.border }]}>
+      <View style={[s.sheet, sheetExpanded && s.sheetExpanded, {
+        backgroundColor: glassFill,
+        borderTopColor: glassBorder,
+      }]}>
         <TouchableOpacity style={s.sheetHandle} onPress={() => setSheetExpanded(v => !v)}>
           <View style={[s.handleBar, { backgroundColor: colors.border }]} />
         </TouchableOpacity>
@@ -394,6 +401,7 @@ export default function DriversScreen() {
         dispatcherId={userId}
       />
     </SafeAreaView>
+    </PageBackground>
   );
 }
 
@@ -475,14 +483,21 @@ const addS = StyleSheet.create({
   cancelText: { fontSize: typography.base, fontWeight: '600' },
 });
 
-const makeStyles = (c, insets) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.pageBg },
+const makeStyles = (c, insets, isDark) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: 'transparent' },
   mapWrap: { flex: 1 },
   markerWrap: { alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 99, backgroundColor: c.elevated, borderWidth: 2, borderColor: c.border },
   markerSelected: { borderColor: c.accent, width: 44, height: 44 },
   markerDot: { position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: 99, borderWidth: 1.5, borderColor: c.elevated },
   markerText: { color: c.textPrimary, fontSize: 11, fontWeight: '700' },
-  floatingCard: { position: 'absolute', bottom: 12, left: 12, right: 12, flexDirection: 'row', alignItems: 'center', borderRadius: radius.xl, padding: spacing[3], borderWidth: 1, gap: spacing[3], elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10 },
+  floatingCard: {
+    position: 'absolute', bottom: 12, left: 12, right: 12,
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: radius.xl, padding: spacing[3], borderWidth: 1, gap: spacing[3],
+    backgroundColor: isDark ? glass.fillDarkFloat : glass.fillLightFloat,
+    borderColor: isDark ? glass.borderDark : glass.borderLightSoft,
+    ...shadow.floating,
+  },
   floatingAvatar: { width: 44, height: 44, borderRadius: radius.pill, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   floatingAvatarText: { color: '#fff', fontSize: typography.sm, fontWeight: '700' },
   floatingDot: { width: 10, height: 10, borderRadius: 99, position: 'absolute', bottom: 0, right: 0, borderWidth: 1.5, borderColor: c.elevated },
@@ -490,7 +505,7 @@ const makeStyles = (c, insets) => StyleSheet.create({
   floatingTruck: { fontSize: typography.xs, marginTop: 1 },
   floatingStats: { flexDirection: 'row', gap: spacing[3], marginTop: 3 },
   floatingStat: { fontSize: typography.xs },
-  chatBtnWrap: { borderRadius: radius.md, overflow: 'hidden' },
+  chatBtnWrap: { borderRadius: radius.md, overflow: 'hidden', ...shadow.glow },
   chatBtn: { paddingHorizontal: spacing[3], paddingVertical: spacing[2] },
   chatBtnText: { color: '#fff', fontSize: typography.sm, fontWeight: '700' },
   floatingClose: { padding: spacing[1] },
@@ -502,7 +517,7 @@ const makeStyles = (c, insets) => StyleSheet.create({
   sheetTitle: { fontSize: typography.base, fontWeight: '700' },
   sheetActions: { flexDirection: 'row', gap: spacing[2], alignItems: 'center' },
   iconBtn: { width: 34, height: 34, borderRadius: radius.md, justifyContent: 'center', alignItems: 'center' },
-  addBtn: { paddingHorizontal: spacing[3], paddingVertical: spacing[2], borderRadius: radius.md },
+  addBtn: { paddingHorizontal: spacing[3], paddingVertical: spacing[2], borderRadius: radius.md, ...shadow.glow },
   addBtnText: { color: '#fff', fontSize: typography.sm, fontWeight: '700' },
   searchInput: { marginHorizontal: spacing[4], marginBottom: spacing[2], borderRadius: radius.md, paddingHorizontal: spacing[3], paddingVertical: spacing[2], borderWidth: 1, fontSize: typography.sm },
   tabsScroll: { flexGrow: 0 },
