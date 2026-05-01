@@ -32,46 +32,32 @@ function buildContext(loads, drivers) {
   return `You are a dispatch assistant for DispatchR. Current fleet: ${drivers.length} drivers (${moving} moving, ${idle} idle, ${offline} offline). Hot loads: ${hot}. Booked loads: ${booked}. Total loads: ${loads.length}. Answer concisely and professionally.`;
 }
 
+// AI calls were removed from the client for security (the Anthropic key
+// would be bundled into the shipped app). Until the backend proxy ships,
+// fall back to local rule-based replies derived from the loaded data.
 async function callAI(messages, loads, drivers) {
-  const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
   const statusOf = d => {
     if (typeof d.status === 'number') return ['moving', 'idle', 'offline'][d.status] ?? 'offline';
     return (d.status || 'offline').toLowerCase();
   };
-  if (!API_KEY) {
-    const last = messages[messages.length - 1].content.toLowerCase();
-    if (last.includes('hot')) {
-      const hot = loads.filter(l => l.status === 'Hot' || l.status === 'hot');
-      return `You have **${hot.length} hot loads** right now.\n\nTop priority:\n${hot.slice(0, 3).map(l => `• ${l.origin} → ${l.destination} ($${(l.rate || 0).toLocaleString()})`).join('\n') || '(none)'}`;
-    }
-    if (last.includes('driver') || last.includes('fleet')) {
-      const moving = drivers.filter(d => statusOf(d) === 'moving');
-      const idle = drivers.filter(d => statusOf(d) === 'idle');
-      const offline = drivers.filter(d => statusOf(d) === 'offline');
-      const nameOf = d => d.name || [d.firstName, d.lastName].filter(Boolean).join(' ') || 'Driver';
-      return `**Fleet Status**\n• 🟢 Moving: ${moving.length} drivers\n• 🟡 Idle: ${idle.length} drivers\n• ⚫ Offline: ${offline.length} drivers\n\n**Available:**\n${[...moving, ...idle].slice(0, 5).map(d => `• ${nameOf(d)}`).join('\n') || '(none)'}`;
-    }
-    if (last.includes('revenue') || last.includes('rate') || last.includes('deliver')) {
-      const booked = loads.filter(l => l.status === 'Booked' || l.status === 'booked');
-      const total = booked.reduce((s, l) => s + (l.rate || 0), 0);
-      return `**Revenue**\n• Booked loads: ${booked.length}\n• Total: $${total.toLocaleString()}\n• Avg rate: $${booked.length ? Math.round(total / booked.length).toLocaleString() : 0}`;
-    }
-    return `I'm your **DispatchR AI** assistant. I can help with:\n• Load analysis & hot load alerts\n• Fleet status & driver availability\n• Revenue & rate analysis\n• Dispatch decisions\n\nAsk me anything about your fleet!`;
+  const last = messages[messages.length - 1].content.toLowerCase();
+  if (last.includes('hot')) {
+    const hot = loads.filter(l => l.status === 'Hot' || l.status === 'hot');
+    return `You have **${hot.length} hot loads** right now.\n\nTop priority:\n${hot.slice(0, 3).map(l => `• ${l.origin} → ${l.destination} ($${(l.rate || 0).toLocaleString()})`).join('\n') || '(none)'}`;
   }
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      system: buildContext(loads, drivers),
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
-    }),
-  });
-  if (!res.ok) throw new Error('AI request failed');
-  const data = await res.json();
-  return data.content[0].text;
+  if (last.includes('driver') || last.includes('fleet')) {
+    const moving = drivers.filter(d => statusOf(d) === 'moving');
+    const idle = drivers.filter(d => statusOf(d) === 'idle');
+    const offline = drivers.filter(d => statusOf(d) === 'offline');
+    const nameOf = d => d.name || [d.firstName, d.lastName].filter(Boolean).join(' ') || 'Driver';
+    return `**Fleet Status**\n• 🟢 Moving: ${moving.length} drivers\n• 🟡 Idle: ${idle.length} drivers\n• ⚫ Offline: ${offline.length} drivers\n\n**Available:**\n${[...moving, ...idle].slice(0, 5).map(d => `• ${nameOf(d)}`).join('\n') || '(none)'}`;
+  }
+  if (last.includes('revenue') || last.includes('rate') || last.includes('deliver')) {
+    const booked = loads.filter(l => l.status === 'Booked' || l.status === 'booked');
+    const total = booked.reduce((s, l) => s + (l.rate || 0), 0);
+    return `**Revenue**\n• Booked loads: ${booked.length}\n• Total: $${total.toLocaleString()}\n• Avg rate: $${booked.length ? Math.round(total / booked.length).toLocaleString() : 0}`;
+  }
+  return `I'm your **DispatchR AI** assistant. I can help with:\n• Load analysis & hot load alerts\n• Fleet status & driver availability\n• Revenue & rate analysis\n• Dispatch decisions\n\nAsk me anything about your fleet!`;
 }
 
 export default function AiChatScreen() {

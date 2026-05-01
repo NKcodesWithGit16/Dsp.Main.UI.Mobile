@@ -127,29 +127,10 @@ export default function AiChat() {
     setLoading(true);
 
     try {
-      const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        await new Promise(r => setTimeout(r, 700));
-        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: fallbackReply(body) } : m));
-      } else {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 400,
-            system: `You are a helpful AI assistant built into the DispatchR mobile app for truck drivers. Help with routes, HOS compliance, weather, rest stops, load questions, and general driving safety. Be concise — drivers are on the road. Driver: ${userName || 'Driver'}.`,
-            messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.text })),
-          }),
-        });
-        const data = await res.json();
-        const reply = data?.content?.[0]?.text || 'No response.';
-        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: reply } : m));
-      }
+      // AI calls were removed from the client for security. Until the backend
+      // proxy ships, use the local rule-based fallback.
+      await new Promise(r => setTimeout(r, 700));
+      setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: fallbackReply(body) } : m));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (e) {
       setError(e?.message || 'Something went wrong');
