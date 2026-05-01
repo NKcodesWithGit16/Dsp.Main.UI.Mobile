@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/context/ThemeContext';
+import RoleGate from '../../src/components/RoleGate';
 
 const TABS = [
   { name: 'home',      icon: '⌂',  label: 'Home' },
@@ -38,6 +39,7 @@ export default function AppLayout() {
   const insets = useSafeAreaInsets();
 
   return (
+    <RoleGate allow="dispatcher">
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -68,6 +70,7 @@ export default function AppLayout() {
         />
       ))}
     </Tabs>
+    </RoleGate>
   );
 }
 

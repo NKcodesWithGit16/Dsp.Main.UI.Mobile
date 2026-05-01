@@ -1,5 +1,10 @@
 import { Stack } from 'expo-router';
+import RoleGate from '../../src/components/RoleGate';
 
 export default function DriverLayout() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <RoleGate allow="driver">
+      <Stack screenOptions={{ headerShown: false }} />
+    </RoleGate>
+  );
 }

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readUserFromToken } from '../utils/auth';
 
 const AuthContext = createContext(null);
 
@@ -8,41 +9,44 @@ export function AuthProvider({ children }) {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userToken, setUserToken] = useState(null);
-  const [userRole, setUserRole] = useState('dispatcher');
+  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      AsyncStorage.getItem('userId'),
       AsyncStorage.getItem('userName'),
       AsyncStorage.getItem('userEmail'),
       AsyncStorage.getItem('userToken'),
-      AsyncStorage.getItem('userRole'),
-    ]).then(([id, name, email, token, role]) => {
-      if (id) {
-        setUserId(id);
+    ]).then(([name, email, token]) => {
+      const claims = readUserFromToken(token);
+      if (claims && claims.userId) {
+        setUserId(claims.userId);
         setUserName(name || '');
         setUserEmail(email || '');
-        setUserToken(token || null);
-        setUserRole(role || 'dispatcher');
+        setUserToken(token);
+        setUserRole(claims.role);
       }
       setLoading(false);
     });
   }, []);
 
-  const login = async (id, name, email, token = null, role = 'dispatcher') => {
+  // `role` and `id` args are ignored — both are derived from the token
+  // claims so they can't be tampered with via storage.
+  const login = async (_id, name, email, token = null) => {
+    const claims = readUserFromToken(token);
+    if (!claims || !claims.userId) {
+      throw new Error('Login token missing or invalid');
+    }
     await AsyncStorage.multiSet([
-      ['userId', String(id)],
       ['userName', name || ''],
       ['userEmail', email || ''],
       ['userToken', token || ''],
-      ['userRole', role || 'dispatcher'],
     ]);
-    setUserId(String(id));
+    setUserId(claims.userId);
     setUserName(name || '');
     setUserEmail(email || '');
     setUserToken(token || null);
-    setUserRole(role || 'dispatcher');
+    setUserRole(claims.role);
   };
 
   const logout = async () => {
@@ -51,7 +55,7 @@ export function AuthProvider({ children }) {
     setUserName('');
     setUserEmail('');
     setUserToken(null);
-    setUserRole('dispatcher');
+    setUserRole(null);
   };
 
   return (
