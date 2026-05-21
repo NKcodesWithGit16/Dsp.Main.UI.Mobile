@@ -14,20 +14,25 @@ import MapView, { Marker, MarkerAnimated, Polyline, PROVIDER_GOOGLE, AnimatedReg
 import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../src/context/AuthContext';
 import {
-  fetchActiveLoad, fetchDriverMessages, updateDriverStatus,
+  fetchActiveLoad, fetchDriverMessages,
 } from '../../src/api/main';
+import { useAutoStatus } from '../../src/hooks/useAutoStatus';
+import { fetchRoute } from '../../src/utils/directions';
+import LoadAssignmentModal from '../../src/components/driver/LoadAssignmentModal';
+import { NavManeuverBanner, NavBottomHud } from '../../src/components/driver/NavigationHud';
+import {
+  advanceStepIndex, bearingDeg, distanceToRouteMeters,
+  haversineMeters, nearestPointOnRoute,
+} from '../../src/utils/navigation';
+import { acceptLoad as apiAcceptLoad, declineLoad as apiDeclineLoad } from '../../src/api/main';
 import { spacing, glass, shadow, gradients } from '../../src/theme/colors';
 import { darkMapStyle, lightMapStyle } from '../../src/theme/mapStyles';
+import DeliveryProofModal from '../../src/components/shared/DeliveryProofModal';
+import { usePushNotifications } from '../../src/hooks/usePushNotifications';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const SHEET_COLLAPSED = 148;
 const SHEET_OPEN = Math.round(SCREEN_H * 0.62);
-
-const STATUSES = [
-  { key: 'moving',  label: 'Moving',  color: '#22c55e' },
-  { key: 'idle',    label: 'Idle',    color: '#f59e0b' },
-  { key: 'offline', label: 'Offline', color: '#9ca3af' },
-];
 
 function haversineMiles(a, b) {
   if (!a || !b) return null;
@@ -153,9 +158,8 @@ const pillS = StyleSheet.create({
 });
 
 /* ═════ Header ═════ */
-function DriverHeader({ status, userName, onAvatarTap, colors, isDark }) {
+function DriverHeader({ userName, onAvatarTap, colors, isDark }) {
   const insets = useSafeAreaInsets();
-  const statusMeta = STATUSES.find(s => s.key === status) || STATUSES[0];
   const initials = userName
     ? userName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
     : 'DR';
@@ -176,18 +180,9 @@ function DriverHeader({ status, userName, onAvatarTap, colors, isDark }) {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[hdrS.pill, {
-            backgroundColor: statusMeta.color + '1f',
-            borderColor: statusMeta.color + '55',
-          }]}
-          onPress={onAvatarTap}
-          activeOpacity={0.8}
-        >
-          <PulseDot color={statusMeta.color} size={7} />
-          <Text style={[hdrS.pillText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
-          <LinearGradient colors={['#6366f1', '#8b5cf6']} style={hdrS.avatar}>
-            <Text style={hdrS.avatarText}>{initials}</Text>
+        <TouchableOpacity onPress={onAvatarTap} activeOpacity={0.85}>
+          <LinearGradient colors={['#6366f1', '#8b5cf6']} style={hdrS.avatarSolo}>
+            <Text style={hdrS.avatarSoloText}>{initials}</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -201,14 +196,17 @@ const hdrS = StyleSheet.create({
   logo: { fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
   roleBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
   roleText: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.8 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 10, paddingRight: 4, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
-  pillText: { fontSize: 11.5, fontWeight: '800', letterSpacing: 0.3, textTransform: 'capitalize' },
-  avatar: { width: 28, height: 28, borderRadius: 999, justifyContent: 'center', alignItems: 'center', marginLeft: 4 },
-  avatarText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  avatarSolo: {
+    width: 36, height: 36, borderRadius: 999,
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
+  },
+  avatarSoloText: { color: '#fff', fontSize: 13, fontWeight: '800' },
 });
 
 /* ═════ Dropdown menu ═════ */
-function HeaderMenu({ visible, onClose, isDark, colors, userName, userEmail, truckInfo, onToggleTheme, onSignOut }) {
+function HeaderMenu({ visible, onClose, isDark, colors, userName, userEmail, truckInfo, onToggleTheme, onSignOut, onOpenSettings }) {
   const insets = useSafeAreaInsets();
   const opacity = useRef(new Animated.Value(0)).current;
   const translate = useRef(new Animated.Value(-6)).current;
@@ -287,6 +285,12 @@ function HeaderMenu({ visible, onClose, isDark, colors, userName, userEmail, tru
                 Haptics.selectionAsync();
                 Alert.alert('Truck info', truckInfo || 'No truck info on file. Contact your dispatcher.');
               }}
+            />
+            <MenuRow
+              icon="⚙︎"
+              label="Settings"
+              colors={colors}
+              onPress={onOpenSettings}
             />
 
             <View style={[menuS.divider, { backgroundColor: colors.border }]} />
@@ -561,7 +565,6 @@ export default function DriverPortal() {
   const [activeLoad, setActiveLoad] = useState(null);
   const [loadLoading, setLoadLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [status, setStatus] = useState('moving');
   const [unread, setUnread] = useState(0);
   const [mapReady, setMapReady] = useState(false);
   const [speedMph, setSpeedMph] = useState(null);
@@ -572,9 +575,23 @@ export default function DriverPortal() {
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [banner, setBanner] = useState(null);
   const [arrivedVisible, setArrivedVisible] = useState(false);
+  const [proofModalVisible, setProofModalVisible] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const [denying, setDenying] = useState(false);
   const arrivedDismissedRef = useRef(false);
 
+  // Mobile shows the assign-load modal whenever there's an assigned load
+  // that the driver hasn't acknowledged yet. Server marks `acceptedAt` at
+  // assign-time if the driver opted into auto-accept.
+  const needsAcceptance = !!(activeLoad && activeLoad.status === 'Assigned' && !activeLoad.acceptedAt);
+
   const { toast, show: showToast, clear: clearToast } = useToast();
+
+  usePushNotifications(userId, (title, body) => showToast(`${title}: ${body}`, 'info'));
+
+  // Heartbeats keep the dispatcher view fresh (server derives moving/idle/offline).
+  // The driver UI itself never surfaces the bucket — speed + GPS pills are enough.
+  useAutoStatus(userId, driverPos, speedMph);
 
   const prevMsgCountRef = useRef(0);
   const firstPollDoneRef = useRef(false);
@@ -598,6 +615,36 @@ export default function DriverPortal() {
       setActiveLoad(normalizeLoad(d));
     } catch {}
   }, [userId]);
+
+  const handleAccept = useCallback(async () => {
+    if (!activeLoad?.id || !userId) return;
+    setAccepting(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    try {
+      await apiAcceptLoad(activeLoad.id, userId);
+      await loadActive();
+      showToast('Load accepted', 'success');
+    } catch {
+      showToast('Could not accept load', 'error');
+    } finally {
+      setAccepting(false);
+    }
+  }, [activeLoad?.id, userId, loadActive]);
+
+  const handleDecline = useCallback(async () => {
+    if (!activeLoad?.id || !userId) return;
+    setDenying(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    try {
+      await apiDeclineLoad(activeLoad.id, userId);
+      setActiveLoad(null);
+      showToast('Load declined — dispatcher notified', 'info');
+    } catch {
+      showToast('Could not decline load', 'error');
+    } finally {
+      setDenying(false);
+    }
+  }, [activeLoad?.id, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -703,16 +750,16 @@ export default function DriverPortal() {
     };
   }, []);
 
-  // Fallback simulated speed when offline / no permission
+  // Fallback simulated speed when there's no GPS permission so the
+  // speed pill doesn't sit at "0 mph" forever during demos.
   useEffect(() => {
     if (hasLocationPermission) return;
-    if (status !== 'moving') { setSpeedMph(null); return; }
     const base = 55;
     const iv = setInterval(() => {
       setSpeedMph(base + Math.round((Math.random() - 0.5) * 14));
     }, 1600);
     return () => clearInterval(iv);
-  }, [status, hasLocationPermission]);
+  }, [hasLocationPermission]);
 
   // Fallback driver position if no GPS: 25% along route
   const fallbackPos = useMemo(() => {
@@ -764,32 +811,6 @@ export default function DriverPortal() {
   useEffect(() => {
     hasFitRef.current = false;
   }, [activeLoad?.id ?? activeLoad?.origin]);
-
-  const changeStatus = async (next) => {
-    if (next === status) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    setStatus(next);
-    try {
-      await updateDriverStatus(userId, next);
-      showToast(`Status set to ${next}`, 'success');
-    } catch {
-      showToast('Could not update status', 'error');
-    }
-  };
-
-  const mapsUrl = useMemo(() => {
-    if (!activeLoad) return null;
-    if (activeLoad.hasCoords) {
-      return `https://www.google.com/maps/dir/?api=1&destination=${activeLoad.dropoffLat},${activeLoad.dropoffLng}`;
-    }
-    const dest = encodeURIComponent(activeLoad.destination || '');
-    return `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
-  }, [activeLoad]);
-
-  const openMaps = () => {
-    Haptics.selectionAsync();
-    if (mapsUrl) Linking.openURL(mapsUrl).catch(() => {});
-  };
 
   const initialRegion = useMemo(() => {
     if (activeLoad?.hasCoords) {
@@ -860,16 +881,13 @@ export default function DriverPortal() {
     toggleTheme();
   };
 
-  const recenterMap = useCallback(() => {
-    Haptics.selectionAsync().catch(() => {});
-    if (!mapRef.current || !effectiveDriverPos) return;
-    mapRef.current.animateToRegion({
-      latitude: effectiveDriverPos.latitude,
-      longitude: effectiveDriverPos.longitude,
-      latitudeDelta: 0.04,
-      longitudeDelta: 0.04,
-    }, 500);
-  }, [effectiveDriverPos]);
+  // Auto-follow toggle for nav mode. Flips off when the user pans/zooms the
+  // map by hand; the recenter button flips it back on and snaps the camera.
+  // Defined here so the gesture handler/recenter UI can read it; the actual
+  // recenterMap function lives below where the nav state is in scope.
+  const [followMode, setFollowMode] = useState(true);
+  const followModeRef = useRef(true);
+  followModeRef.current = followMode;
 
   /* ───────── Bottom sheet ───────── */
   const sheetH = useRef(new Animated.Value(SHEET_OPEN)).current;
@@ -973,17 +991,264 @@ export default function DriverPortal() {
     router.push('/(driver)/ai-chat');
   };
 
-  // Split-polyline coordinates
-  const polylineCoords = useMemo(() => {
+  // Road-following polyline from Google Directions (pickup → dropoff).
+  // Refetches only when the load changes — driver movement doesn't change the road.
+  const [routeCoords, setRouteCoords] = useState(null);
+  useEffect(() => {
+    if (!activeLoad?.hasCoords) { setRouteCoords(null); return; }
+    let cancelled = false;
+    fetchRoute({
+      origin: { latitude: activeLoad.pickupLat, longitude: activeLoad.pickupLng },
+      destination: { latitude: activeLoad.dropoffLat, longitude: activeLoad.dropoffLng },
+    }).then(r => {
+      if (!cancelled) setRouteCoords(r?.coords?.length ? r.coords : null);
+    });
+    return () => { cancelled = true; };
+  }, [activeLoad?.id, activeLoad?.pickupLat, activeLoad?.pickupLng, activeLoad?.dropoffLat, activeLoad?.dropoffLng]);
+
+  // Road-following dashed deadhead line from the driver's actual location
+  // to pickup. Refetches when the driver moves ≥1km from where we last
+  // fetched so the line stays accurate the whole drive. Skipped in nav mode
+  // (the active nav route covers it) and after pickup arrival.
+  const [driverToPickupCoords, setDriverToPickupCoords] = useState(null);
+  const lastDeadheadFetchRef = useRef(null);     // { loadId, position }
+  const deadheadInFlightRef = useRef(false);
+  useEffect(() => {
+    if (!activeLoad?.hasCoords || !driverPos || activeLoad.pickupArrivedAt || navMode) {
+      setDriverToPickupCoords(null);
+      lastDeadheadFetchRef.current = null;
+      return;
+    }
+    const last = lastDeadheadFetchRef.current;
+    const needsFetch =
+      !last ||
+      last.loadId !== activeLoad.id ||
+      haversineMeters(last.position, driverPos) > 1000;
+    if (!needsFetch || deadheadInFlightRef.current) return;
+
+    deadheadInFlightRef.current = true;
+    const fetchOrigin = driverPos;
+    let cancelled = false;
+    fetchRoute({
+      origin: fetchOrigin,
+      destination: { latitude: activeLoad.pickupLat, longitude: activeLoad.pickupLng },
+    }).then(r => {
+      if (cancelled) return;
+      if (r?.coords?.length) {
+        setDriverToPickupCoords(r.coords);
+        lastDeadheadFetchRef.current = { loadId: activeLoad.id, position: fetchOrigin };
+      }
+    }).finally(() => {
+      deadheadInFlightRef.current = false;
+    });
+    return () => { cancelled = true; };
+  }, [activeLoad?.id, activeLoad?.pickupLat, activeLoad?.pickupLng, activeLoad?.pickupArrivedAt, driverPos, navMode]);
+
+  /* ── Navigation ("Start" / turn-by-turn) ─────────────────────────────── */
+  const [navMode, setNavMode] = useState(false);
+  const [navRoute, setNavRoute] = useState(null);          // { coords, steps, distanceMeters, durationSeconds }
+  const [navStepIdx, setNavStepIdx] = useState(0);
+  const [navStepRemainingMeters, setNavStepRemainingMeters] = useState(0);
+  const [navTotalRemainingMeters, setNavTotalRemainingMeters] = useState(0);
+  const [navTotalRemainingSeconds, setNavTotalRemainingSeconds] = useState(0);
+  const [navIsRerouting, setNavIsRerouting] = useState(false);
+  const [navHeading, setNavHeading] = useState(0);
+  const prevDriverPosRef = useRef(null);
+  const lastBearingRef = useRef(0);
+  const offRouteSinceRef = useRef(null);
+  const rerouteInFlightRef = useRef(false);
+
+  const recenterMap = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    if (!mapRef.current || !effectiveDriverPos) return;
+    setFollowMode(true);
+    if (navMode) {
+      mapRef.current.animateCamera(
+        {
+          center: effectiveDriverPos,
+          pitch: 55,
+          heading: lastBearingRef.current,
+          zoom: 17.5,
+        },
+        { duration: 500 },
+      );
+    } else {
+      mapRef.current.animateToRegion({
+        latitude: effectiveDriverPos.latitude,
+        longitude: effectiveDriverPos.longitude,
+        latitudeDelta: 0.04,
+        longitudeDelta: 0.04,
+      }, 500);
+    }
+  }, [effectiveDriverPos, navMode]);
+
+  const navTarget = useMemo(() => {
     if (!activeLoad?.hasCoords) return null;
-    const origin = { latitude: activeLoad.pickupLat, longitude: activeLoad.pickupLng };
-    const dest = { latitude: activeLoad.dropoffLat, longitude: activeLoad.dropoffLng };
-    const driver = effectiveDriverPos || origin;
-    return {
-      traveled: [origin, driver],
-      remaining: [driver, dest],
-    };
-  }, [activeLoad, effectiveDriverPos]);
+    // After the load is "Loaded", head straight to dropoff; otherwise go to pickup first.
+    const beforePickup = !activeLoad.loadedAt && !activeLoad.pickupArrivedAt;
+    return beforePickup
+      ? { latitude: activeLoad.pickupLat, longitude: activeLoad.pickupLng, kind: 'pickup' }
+      : { latitude: activeLoad.dropoffLat, longitude: activeLoad.dropoffLng, kind: 'dropoff' };
+  }, [activeLoad]);
+
+  const startNavigation = useCallback(async () => {
+    if (!effectiveDriverPos || !navTarget) {
+      showToast('Waiting for GPS — try again in a moment', 'info');
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setNavIsRerouting(true);
+    const route = await fetchRoute({
+      origin: effectiveDriverPos,
+      destination: { latitude: navTarget.latitude, longitude: navTarget.longitude },
+    });
+    setNavIsRerouting(false);
+    if (!route?.steps?.length) {
+      showToast('Could not load directions', 'error');
+      return;
+    }
+    setNavRoute(route);
+    setNavStepIdx(0);
+    setNavTotalRemainingMeters(route.distanceMeters);
+    setNavTotalRemainingSeconds(route.durationSeconds);
+    setNavMode(true);
+    setFollowMode(true);
+    // Seed the heading from the first segment so the camera doesn't snap
+    // north on the first frame before any GPS-delta is available.
+    if (route.coords?.length > 1) {
+      const seedHeading = bearingDeg(route.coords[0], route.coords[1]);
+      lastBearingRef.current = seedHeading;
+      setNavHeading(seedHeading);
+    }
+    // Collapse the bottom sheet so the map can take over.
+    snapTo(SHEET_COLLAPSED);
+    // Immediate camera move so Start feels instant: snaps to driver, tilts,
+    // and rotates to face the route direction — Google-Maps style.
+    if (mapRef.current) {
+      mapRef.current.animateCamera(
+        {
+          center: effectiveDriverPos,
+          pitch: 55,
+          heading: lastBearingRef.current,
+          zoom: 17.5,
+        },
+        { duration: 600 },
+      );
+    }
+  }, [effectiveDriverPos, navTarget, showToast]);
+
+  const stopNavigation = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    setNavMode(false);
+    setNavRoute(null);
+    setNavStepIdx(0);
+    setFollowMode(true);
+    snapTo(SHEET_OPEN);
+    // Reset camera to overhead.
+    if (mapRef.current) {
+      mapRef.current.animateCamera(
+        { pitch: 0, heading: 0, zoom: 12 },
+        { duration: 500 },
+      );
+    }
+  }, []);
+
+  // On every GPS update while in nav mode:
+  //  - Advance to the current maneuver step
+  //  - Compute distance-to-maneuver + remaining trip distance/time
+  //  - Tilt + heading-follow the camera
+  //  - Detect off-route → silently refetch
+  useEffect(() => {
+    if (!navMode || !navRoute || !effectiveDriverPos) return;
+
+    const prev = prevDriverPosRef.current;
+    prevDriverPosRef.current = effectiveDriverPos;
+
+    // Snap to the nearest point on the route polyline when we're within the
+    // road corridor. Hides GPS jitter and keeps the camera glued to the road.
+    const snap = nearestPointOnRoute(effectiveDriverPos, navRoute.coords);
+    const onRoute = snap && snap.distance <= 40;
+    const center = onRoute ? snap.point : effectiveDriverPos;
+
+    // Heading: use the route's tangent when we're on it (matches the road),
+    // otherwise fall back to GPS delta. Stationary → keep the last heading.
+    let heading = lastBearingRef.current;
+    if (onRoute) {
+      heading = snap.bearing;
+      lastBearingRef.current = heading;
+    } else if (prev && haversineMeters(prev, effectiveDriverPos) > 3) {
+      heading = bearingDeg(prev, effectiveDriverPos);
+      lastBearingRef.current = heading;
+    }
+    // Only re-render the marker when heading actually shifted enough to see.
+    if (Math.abs(heading - navHeading) > 2) setNavHeading(heading);
+
+    const newIdx = advanceStepIndex(navRoute.steps, navStepIdx, effectiveDriverPos);
+    if (newIdx !== navStepIdx) setNavStepIdx(newIdx);
+
+    const currentStep = navRoute.steps[newIdx];
+    if (currentStep) {
+      const dToManeuver = haversineMeters(effectiveDriverPos, currentStep.endLocation);
+      setNavStepRemainingMeters(dToManeuver);
+      // Sum distances of steps after the current one + dToManeuver for the rest.
+      let remainingMeters = dToManeuver;
+      let remainingSeconds = currentStep.durationSeconds * (currentStep.distanceMeters
+        ? Math.min(1, dToManeuver / currentStep.distanceMeters) : 1);
+      for (let i = newIdx + 1; i < navRoute.steps.length; i++) {
+        remainingMeters += navRoute.steps[i].distanceMeters;
+        remainingSeconds += navRoute.steps[i].durationSeconds;
+      }
+      setNavTotalRemainingMeters(remainingMeters);
+      setNavTotalRemainingSeconds(remainingSeconds);
+    }
+
+    // Off-route check: 40m corridor (matches the snap threshold). Sustained
+    // 5s of being off → refetch a fresh route.
+    if (!onRoute && (snap?.distance ?? Infinity) > 40) {
+      if (!offRouteSinceRef.current) offRouteSinceRef.current = Date.now();
+      if (Date.now() - offRouteSinceRef.current > 5_000 && !rerouteInFlightRef.current) {
+        rerouteInFlightRef.current = true;
+        setNavIsRerouting(true);
+        fetchRoute({
+          origin: effectiveDriverPos,
+          destination: { latitude: navTarget.latitude, longitude: navTarget.longitude },
+        }).then(route => {
+          if (route?.steps?.length) {
+            setNavRoute(route);
+            setNavStepIdx(0);
+            setNavTotalRemainingMeters(route.distanceMeters);
+            setNavTotalRemainingSeconds(route.durationSeconds);
+          }
+        }).finally(() => {
+          setNavIsRerouting(false);
+          rerouteInFlightRef.current = false;
+          offRouteSinceRef.current = null;
+        });
+      }
+    } else {
+      offRouteSinceRef.current = null;
+    }
+
+    // Camera follow: tilted, heading-aligned, snapped to road when on-route.
+    // Skipped while the user has panned the map manually — they get a
+    // recenter button to return to follow mode.
+    if (mapRef.current && followModeRef.current) {
+      mapRef.current.animateCamera(
+        {
+          center,
+          pitch: 55,
+          heading,
+          zoom: 17.5,
+        },
+        { duration: 800 },
+      );
+    }
+  }, [navMode, navRoute, effectiveDriverPos, navStepIdx, navTarget, navHeading]);
+
+  // If the user gets a new active load while navigating an old one, drop out.
+  useEffect(() => {
+    if (navMode && !activeLoad) stopNavigation();
+  }, [navMode, activeLoad, stopNavigation]);
 
   const truckInfo = activeLoad?.equipment || activeLoad?.truckInfo || null;
 
@@ -998,10 +1263,14 @@ export default function DriverPortal() {
           initialRegion={initialRegion}
           customMapStyle={isDark ? darkMapStyle : lightMapStyle}
           showsCompass={false}
-          showsUserLocation
+          showsUserLocation={!navMode}
           showsMyLocationButton={false}
           followsUserLocation={false}
           onMapReady={() => setMapReady(true)}
+          onPanDrag={() => {
+            // User dragged the map → stop auto-following until they tap Recenter.
+            if (followModeRef.current) setFollowMode(false);
+          }}
         >
           {activeLoad?.hasCoords && (
             <>
@@ -1025,19 +1294,42 @@ export default function DriverPortal() {
                 </View>
               </Marker>
 
-              {polylineCoords && (
+              {navMode && navRoute?.coords ? (
+                navTarget?.kind === 'pickup' ? (
+                  // Deadhead in nav mode: dashed green, full fidelity.
+                  <Polyline
+                    coordinates={navRoute.coords}
+                    strokeColor="#22c55e"
+                    strokeWidth={6}
+                    lineDashPattern={[14, 10]}
+                  />
+                ) : (
+                  // Loaded leg in nav mode: solid blue.
+                  <Polyline
+                    coordinates={navRoute.coords}
+                    strokeColor="#2563eb"
+                    strokeWidth={7}
+                  />
+                )
+              ) : (
                 <>
-                  <Polyline
-                    coordinates={polylineCoords.traveled}
-                    strokeColor="#6366f1"
-                    strokeWidth={5}
-                  />
-                  <Polyline
-                    coordinates={polylineCoords.remaining}
-                    strokeColor={isDark ? 'rgba(148,163,184,0.75)' : '#94a3b8'}
-                    strokeWidth={4}
-                    lineDashPattern={[10, 8]}
-                  />
+                  {/* Pickup → dropoff: the actual load route, solid blue. */}
+                  {routeCoords && (
+                    <Polyline
+                      coordinates={routeCoords}
+                      strokeColor="#2563eb"
+                      strokeWidth={5}
+                    />
+                  )}
+                  {/* Driver → pickup deadhead, dashed green, road-routed. */}
+                  {driverToPickupCoords && (
+                    <Polyline
+                      coordinates={driverToPickupCoords}
+                      strokeColor="#22c55e"
+                      strokeWidth={4}
+                      lineDashPattern={[12, 10]}
+                    />
+                  )}
                 </>
               )}
 
@@ -1049,13 +1341,25 @@ export default function DriverPortal() {
               coordinate={animatedCoord}
               anchor={{ x: 0.5, y: 0.5 }}
               zIndex={10}
+              flat={navMode}
+              rotation={navMode ? navHeading : 0}
             >
-              <View style={styles.driverPinWrap}>
-                <View style={styles.driverPinPulse} />
-                <LinearGradient colors={['#6366f1', '#4f46e5']} style={styles.driverPin}>
-                  <Text style={styles.driverPinIcon}>🚛</Text>
-                </LinearGradient>
-              </View>
+              {navMode ? (
+                // Google-Maps-style navigation puck: blue chevron on a halo.
+                <View style={styles.navPuckWrap}>
+                  <View style={styles.navPuckHalo} />
+                  <View style={styles.navPuckCircle}>
+                    <View style={styles.navPuckArrow} />
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.driverPinWrap}>
+                  <View style={styles.driverPinPulse} />
+                  <LinearGradient colors={['#6366f1', '#4f46e5']} style={styles.driverPin}>
+                    <Text style={styles.driverPinIcon}>🚛</Text>
+                  </LinearGradient>
+                </View>
+              )}
             </MarkerAnimated>
           )}
         </MapView>
@@ -1076,23 +1380,45 @@ export default function DriverPortal() {
         ]}
       />
 
-      {/* ── Header ── */}
-      <DriverHeader
-        status={status}
-        userName={userName}
-        onAvatarTap={() => { Haptics.selectionAsync(); setMenuOpen(v => !v); }}
-        colors={colors}
-        isDark={isDark}
-      />
+      {/* ── Header (hidden in nav mode for full-bleed driving UI) ── */}
+      {!navMode && (
+        <DriverHeader
+          userName={userName}
+          onAvatarTap={() => { Haptics.selectionAsync(); setMenuOpen(v => !v); }}
+          colors={colors}
+          isDark={isDark}
+        />
+      )}
 
-      {/* ── Pills ── */}
-      <View style={[styles.pillsWrap, { top: insets.top + 58 }]} pointerEvents="box-none">
-        <MapPills speedMph={speedMph} gpsOk={gpsOk} isDark={isDark} />
-      </View>
+      {/* ── Pills (suppressed in nav mode — bottom HUD owns speed) ── */}
+      {!navMode && (
+        <View style={[styles.pillsWrap, { top: insets.top + 58 }]} pointerEvents="box-none">
+          <MapPills speedMph={speedMph} gpsOk={gpsOk} isDark={isDark} />
+        </View>
+      )}
+
+      {/* ── Navigation HUD ── */}
+      {navMode && navRoute && (
+        <>
+          <NavManeuverBanner
+            step={navRoute.steps[navStepIdx]}
+            distanceToManeuverMeters={navStepRemainingMeters}
+            isRerouting={navIsRerouting}
+          />
+          <NavBottomHud
+            remainingMeters={navTotalRemainingMeters}
+            remainingSeconds={navTotalRemainingSeconds}
+            speedMph={speedMph}
+            onStop={stopNavigation}
+            bottomOffset={SHEET_COLLAPSED + insets.bottom}
+          />
+        </>
+      )}
 
       {/* ── Re-center button ── */}
-      {effectiveDriverPos && mapReady && (
-        <Animated.View style={[styles.recenterWrap, { bottom: recenterBottom }]} pointerEvents="box-none">
+      {/* Overview mode: small circle button anchored above the sheet handle.   */}
+      {!navMode && effectiveDriverPos && mapReady && (
+        <Animated.View style={[styles.recenterWrap, { bottom: Animated.add(recenterBottom, new Animated.Value(insets.bottom)) }]} pointerEvents="box-none">
           <TouchableOpacity activeOpacity={0.82} onPress={recenterMap}>
             <BlurView intensity={isDark ? 72 : 58} tint={isDark ? 'dark' : 'light'} style={styles.recenterBlur}>
               <View style={[styles.recenterInner, {
@@ -1104,6 +1430,21 @@ export default function DriverPortal() {
             </BlurView>
           </TouchableOpacity>
         </Animated.View>
+      )}
+      {/* Nav mode: prominent pill that appears only when auto-follow is off.  */}
+      {navMode && !followMode && effectiveDriverPos && mapReady && (
+        <View style={[styles.navRecenterWrap, { bottom: SHEET_COLLAPSED + insets.bottom + 78 }]} pointerEvents="box-none">
+          <TouchableOpacity activeOpacity={0.85} onPress={recenterMap}>
+            <LinearGradient
+              colors={['#2563eb', '#1d4ed8']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.navRecenterPill}
+            >
+              <Text style={styles.navRecenterIcon}>⊙</Text>
+              <Text style={styles.navRecenterText}>Recenter</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* ── Toast + banner ── */}
@@ -1118,7 +1459,7 @@ export default function DriverPortal() {
       {/* ── Bottom sheet ── */}
       <Animated.View style={[
         styles.sheet,
-        { height: sheetH },
+        { height: Animated.add(sheetH, new Animated.Value(insets.bottom)), paddingBottom: insets.bottom },
         {
           borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
           backgroundColor: isDark ? 'rgba(12,18,35,0.55)' : 'rgba(255,255,255,0.55)',
@@ -1197,44 +1538,187 @@ export default function DriverPortal() {
           }
         >
           {/* Load card */}
-          <View style={[styles.loadCard, shadow.card, {
-            backgroundColor: isDark ? glass.fillDarkStrong : glass.fillLightStrong,
-            borderColor: isDark ? glass.borderDarkSoft : glass.borderLightSoft,
-          }]}>
-            {loadLoading ? (
-              <View style={{ padding: spacing[6], alignItems: 'center' }}>
-                <ActivityIndicator color={colors.accent} />
-              </View>
-            ) : activeLoad ? (
-              <>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setDetailsExpanded(v => !v);
-                  }}
-                  style={styles.peek}
-                >
-                  <View style={styles.peekEyebrow}>
-                    <PulseDot color="#6366f1" size={7} />
-                    <Text style={styles.peekEyebrowText}>NEXT STOP</Text>
-                    <View style={{ flex: 1 }} />
-                    <Text style={[styles.peekChev, { color: colors.textMuted }]}>
-                      {detailsExpanded ? 'Hide details' : 'More details'}
+          {loadLoading ? (
+            <View style={[styles.loadCard, shadow.card, {
+              backgroundColor: isDark ? glass.fillDarkStrong : glass.fillLightStrong,
+              borderColor: isDark ? glass.borderDarkSoft : glass.borderLightSoft,
+              padding: 28, alignItems: 'center',
+            }]}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          ) : activeLoad ? (
+            <View style={[styles.loadCardWrap, shadow.card, {
+              borderColor: isDark ? glass.borderDarkSoft : glass.borderLightSoft,
+            }]}>
+              {/* ── Hero: rate + status + equipment ── */}
+              <LinearGradient
+                colors={isDark ? ['#1e1b4b', '#312e81', '#4c1d95'] : ['#6366f1', '#8b5cf6', '#a855f7']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.loadHero}
+              >
+                <View style={styles.loadHeroTop}>
+                  <View style={styles.loadHeroPill}>
+                    <View style={styles.loadHeroDot} />
+                    <Text style={styles.loadHeroPillText}>
+                      {(activeLoad.status || 'Active').toString().replace(/([A-Z])/g, ' $1').trim().toUpperCase()}
                     </Text>
                   </View>
-                  <Text style={[styles.peekDest, { color: colors.textPrimary }]} numberOfLines={2}>
-                    {activeLoad.destination}
+                  {activeLoad.equipment ? (
+                    <View style={styles.loadHeroBadge}>
+                      <Text style={styles.loadHeroBadgeText}>{activeLoad.equipment}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.loadHeroBody}>
+                  <Text style={styles.loadHeroRate}>
+                    {activeLoad.rate != null
+                      ? `$${Number(activeLoad.rate).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                      : 'Active load'}
                   </Text>
-                  <View style={styles.peekMeta}>
-                    {arrivalTime && (
-                      <Text style={[styles.peekMetaStrong, { color: colors.textPrimary }]}>
-                        Arrive {arrivalTime}
+                  <View style={styles.loadHeroMetaRow}>
+                    {activeLoad.rpm ? (
+                      <Text style={styles.loadHeroMeta}>${Number(activeLoad.rpm).toFixed(2)}/mi</Text>
+                    ) : null}
+                    {activeLoad.rpm && activeLoad.miles ? (
+                      <Text style={styles.loadHeroDotSep}>·</Text>
+                    ) : null}
+                    {activeLoad.miles ? (
+                      <Text style={styles.loadHeroMeta}>
+                        {Math.round(activeLoad.miles).toLocaleString()} mi total
                       </Text>
-                    )}
-                    {arrivalTime && <Text style={[styles.peekSep, { color: colors.textMuted }]}>•</Text>}
-                    <Text style={[styles.peekMetaText, { color: colors.textMuted }]}>{distanceText}</Text>
+                    ) : null}
                   </View>
+                </View>
+              </LinearGradient>
+
+              {/* ── Body ── */}
+              <View style={[styles.loadBody, {
+                backgroundColor: isDark ? glass.fillDarkStrong : glass.fillLightStrong,
+              }]}>
+                {/* Route timeline */}
+                <View style={styles.timeline}>
+                  <View style={styles.timelineRail}>
+                    <LinearGradient colors={['#22c55e', '#16a34a']} style={styles.timelinePinPickup}>
+                      <View style={styles.timelinePinInner} />
+                    </LinearGradient>
+                    <View style={styles.timelineLine}>
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <View key={i} style={[styles.timelineSeg, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)' }]} />
+                      ))}
+                    </View>
+                    <LinearGradient colors={['#ef4444', '#dc2626']} style={styles.timelinePinDest}>
+                      <Text style={styles.timelinePinFlag}>⚑</Text>
+                    </LinearGradient>
+                  </View>
+                  <View style={styles.timelineStops}>
+                    <View style={styles.timelineStop}>
+                      <Text style={[styles.timelineLabel, { color: '#22c55e' }]}>PICKUP</Text>
+                      <Text style={[styles.timelinePlace, { color: colors.textPrimary }]} numberOfLines={2}>
+                        {activeLoad.origin}{activeLoad.originState ? `, ${activeLoad.originState}` : ''}
+                      </Text>
+                    </View>
+                    <View style={styles.timelineStop}>
+                      <Text style={[styles.timelineLabel, { color: '#ef4444' }]}>DROP-OFF</Text>
+                      <Text style={[styles.timelinePlace, { color: colors.textPrimary }]} numberOfLines={2}>
+                        {activeLoad.destination}{activeLoad.destState ? `, ${activeLoad.destState}` : ''}
+                      </Text>
+                      {arrivalTime ? (
+                        <Text style={[styles.timelineArrival, { color: colors.textMuted }]}>
+                          Arriving ~{arrivalTime}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                </View>
+
+                {/* Stat strip */}
+                <View style={[styles.statStrip, {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(99,102,241,0.05)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.12)',
+                }]}>
+                  <View style={styles.statCell}>
+                    <Text style={[styles.statCellIcon, { color: '#6366f1' }]}>◷</Text>
+                    <Text style={[styles.statCellValue, { color: colors.textPrimary }]}>{arrivalEtaText || '—'}</Text>
+                    <Text style={[styles.statCellLabel, { color: colors.textMuted }]}>ETA</Text>
+                  </View>
+                  <View style={[styles.statCellDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]} />
+                  <View style={styles.statCell}>
+                    <Text style={[styles.statCellIcon, { color: '#8b5cf6' }]}>⟶</Text>
+                    <Text style={[styles.statCellValue, { color: colors.textPrimary }]}>{distanceText || '—'}</Text>
+                    <Text style={[styles.statCellLabel, { color: colors.textMuted }]}>REMAINING</Text>
+                  </View>
+                  <View style={[styles.statCellDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]} />
+                  <View style={styles.statCell}>
+                    <Text style={[styles.statCellIcon, { color: '#22c55e' }]}>⚡</Text>
+                    <Text style={[styles.statCellValue, { color: colors.textPrimary }]}>
+                      {speedMph != null ? speedMph : '—'}
+                      <Text style={[styles.statCellUnit, { color: colors.textMuted }]}> mph</Text>
+                    </Text>
+                    <Text style={[styles.statCellLabel, { color: colors.textMuted }]}>SPEED</Text>
+                  </View>
+                </View>
+
+                {totalMiles != null && (
+                  <View style={styles.progressBlock}>
+                    <View style={styles.progressRow}>
+                      <Text style={[styles.progressEndpoint, { color: colors.textPrimary }]} numberOfLines={1}>
+                        {activeLoad.origin?.split(',')[0]}
+                      </Text>
+                      <Text style={[styles.progressPctBig, { color: colors.accent }]}>
+                        {Math.round(progressPercent)}%
+                      </Text>
+                      <Text style={[styles.progressEndpoint, { color: colors.textPrimary, textAlign: 'right' }]} numberOfLines={1}>
+                        {activeLoad.destination?.split(',')[0]}
+                      </Text>
+                    </View>
+                    <View style={[styles.progressTrack2, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
+                      <LinearGradient
+                        colors={['#22c55e', '#6366f1', '#ec4899']}
+                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                        style={[styles.progressFill2, { width: `${progressPercent}%` }]}
+                      />
+                      <View style={[styles.progressMarker, { left: `${progressPercent}%` }]}>
+                        <View style={styles.progressMarkerDot} />
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Start navigation */}
+                {!navMode && activeLoad?.hasCoords && (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={startNavigation}
+                    disabled={navIsRerouting}
+                  >
+                    <LinearGradient
+                      colors={['#22c55e', '#16a34a']}
+                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                      style={styles.navStartBtn}
+                    >
+                      <Text style={styles.navStartGlyph}>▶</Text>
+                      <Text style={styles.navStartText}>
+                        {navIsRerouting
+                          ? 'Loading route…'
+                          : `Start — drive to ${navTarget?.kind === 'dropoff' ? 'drop-off' : 'pickup'}`}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
+
+                {/* Toggleable details */}
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => { Haptics.selectionAsync(); setDetailsExpanded(v => !v); }}
+                  style={styles.detailsToggle}
+                >
+                  <Text style={[styles.detailsToggleText, { color: colors.textMuted }]}>
+                    {detailsExpanded ? 'Hide details' : 'Show load details'}
+                  </Text>
+                  <Text style={[styles.detailsToggleChev, { color: colors.textMuted }]}>
+                    {detailsExpanded ? '▴' : '▾'}
+                  </Text>
                 </TouchableOpacity>
 
                 {detailsExpanded && (
@@ -1242,24 +1726,22 @@ export default function DriverPortal() {
                     backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)',
                     borderColor: colors.border,
                   }]}>
-                    <DetailRow label="Equipment" value={activeLoad.equipment || '—'} colors={colors} />
-                    <DetailRow label="Weight" value={activeLoad.weight ? `${activeLoad.weight} lbs` : '—'} colors={colors} />
+                    <DetailRow label="Commodity" value={activeLoad.commodity || '—'} colors={colors} />
                     <DetailRow
-                      label="Pickup window"
-                      value={activeLoad.pickupWindow || activeLoad.pickupTime || '—'}
+                      label="Weight"
+                      value={activeLoad.weight ? `${Number(activeLoad.weight).toLocaleString()} lbs` : '—'}
                       colors={colors}
                     />
-                    <DetailRow
-                      label="Shipper"
-                      value={activeLoad.shipperName || activeLoad.shipper || '—'}
-                      colors={colors}
-                    />
-                    {(activeLoad.shipperPhone || activeLoad.contactPhone) && (
+                    <DetailRow label="Broker" value={activeLoad.brokerName || '—'} colors={colors} />
+                    {activeLoad.notes ? (
+                      <DetailRow label="Notes" value={activeLoad.notes} colors={colors} />
+                    ) : null}
+                    {(activeLoad.brokerPhone || activeLoad.shipperPhone || activeLoad.contactPhone) && (
                       <TouchableOpacity
-                        activeOpacity={0.8}
+                        activeOpacity={0.85}
                         onPress={() => {
                           Haptics.selectionAsync();
-                          const p = activeLoad.shipperPhone || activeLoad.contactPhone;
+                          const p = activeLoad.brokerPhone || activeLoad.shipperPhone || activeLoad.contactPhone;
                           Linking.openURL(`tel:${p}`).catch(() => {});
                         }}
                         style={[styles.callBtn, {
@@ -1268,88 +1750,19 @@ export default function DriverPortal() {
                         }]}
                       >
                         <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '700' }}>
-                          ☎ Call shipper
+                          ☎ Call broker
                         </Text>
                       </TouchableOpacity>
                     )}
                   </View>
                 )}
-
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-                <View style={styles.route}>
-                  <View style={styles.routeRail}>
-                    <View style={[styles.routeDotStart, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#fff', borderColor: '#9ca3af' }]} />
-                    <View style={styles.routeLine}>
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <View key={i} style={[styles.routeLineSeg, { backgroundColor: colors.border }]} />
-                      ))}
-                    </View>
-                    <LinearGradient colors={['#6366f1', '#8b5cf6']} style={styles.routeDotEnd}>
-                      <Text style={styles.routeFlag}>⚑</Text>
-                    </LinearGradient>
-                  </View>
-                  <View style={styles.routeStops}>
-                    <View style={styles.routeStop}>
-                      <Text style={[styles.routeKind, { color: colors.textMuted }]}>FROM</Text>
-                      <Text style={[styles.routeName, { color: colors.textPrimary }]} numberOfLines={2}>{activeLoad.origin}</Text>
-                    </View>
-                    <View style={styles.routeStop}>
-                      <Text style={[styles.routeKind, { color: colors.textMuted }]}>TO</Text>
-                      <Text style={[styles.routeName, { color: colors.textPrimary }]} numberOfLines={2}>{activeLoad.destination}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={[styles.stats, { backgroundColor: colors.border }]}>
-                  <View style={[styles.stat, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.65)' }]}>
-                    <Text style={[styles.statLbl, { color: colors.textMuted }]}>ETA</Text>
-                    <Text style={[styles.statVal, { color: colors.textPrimary }]}>{arrivalEtaText}</Text>
-                  </View>
-                  <View style={[styles.stat, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.65)' }]}>
-                    <Text style={[styles.statLbl, { color: colors.textMuted }]}>DISTANCE</Text>
-                    <Text style={[styles.statVal, { color: colors.textPrimary }]}>{distanceText}</Text>
-                  </View>
-                  <View style={[styles.stat, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.65)' }]}>
-                    <Text style={[styles.statLbl, { color: colors.textMuted }]}>SPEED</Text>
-                    <Text style={[styles.statVal, { color: colors.textPrimary }]}>
-                      {speedMph != null ? speedMph : '--'}
-                      <Text style={[styles.statUnit, { color: colors.textMuted }]}> mph</Text>
-                    </Text>
-                  </View>
-                </View>
-
-                {totalMiles != null && (
-                  <View style={styles.progressWrap}>
-                    <View style={[styles.progressTrack, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)' }]}>
-                      <LinearGradient
-                        colors={['#6366f1', '#8b5cf6']}
-                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                        style={[styles.progressFill, { width: `${progressPercent}%` }]}
-                      />
-                    </View>
-                    <View style={styles.progressLabels}>
-                      <Text style={[styles.progressLabel, { color: colors.textMuted }]} numberOfLines={1}>
-                        {activeLoad.origin?.split(',')[0]}
-                      </Text>
-                      <Text style={[styles.progressPct, { color: colors.accent }]}>
-                        {Math.round(progressPercent)}%
-                      </Text>
-                      <Text style={[styles.progressLabel, { color: colors.textMuted, textAlign: 'right' }]} numberOfLines={1}>
-                        {activeLoad.destination?.split(',')[0]}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                <TouchableOpacity activeOpacity={0.85} onPress={openMaps} style={styles.ctaWrap}>
-                  <LinearGradient colors={['#6366f1', '#8b5cf6']} style={styles.cta} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                    <Text style={styles.ctaIcon}>➤</Text>
-                    <Text style={styles.ctaText}>Open in Maps</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </>
-            ) : (
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.loadCard, shadow.card, {
+              backgroundColor: isDark ? glass.fillDarkStrong : glass.fillLightStrong,
+              borderColor: isDark ? glass.borderDarkSoft : glass.borderLightSoft,
+            }]}>
               <View style={styles.loadEmpty}>
                 <View style={styles.loadEmptyBadge}>
                   <Text style={{ fontSize: 26 }}>🚛</Text>
@@ -1359,48 +1772,8 @@ export default function DriverPortal() {
                   Your next assignment will appear here.
                 </Text>
               </View>
-            )}
-          </View>
-
-          {/* Status card */}
-          <View style={[styles.statusCard, shadow.card, {
-            backgroundColor: isDark ? glass.fillDarkStrong : glass.fillLightStrong,
-            borderColor: isDark ? glass.borderDarkSoft : glass.borderLightSoft,
-          }]}>
-            <View style={styles.statusHead}>
-              <View style={{ width: 16, height: 16 }}>
-                <PulseDot color={STATUSES.find(s => s.key === status).color} size={12} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.statusTitle, { color: colors.textPrimary }]}>
-                  You're {STATUSES.find(s => s.key === status).label}
-                </Text>
-                <Text style={[styles.statusSub, { color: colors.textMuted }]}>
-                  Dispatchers see this in real time
-                </Text>
-              </View>
             </View>
-            <View style={styles.statusToggle}>
-              {STATUSES.map(opt => {
-                const active = status === opt.key;
-                return (
-                  <TouchableOpacity
-                    key={opt.key}
-                    onPress={() => changeStatus(opt.key)}
-                    activeOpacity={0.85}
-                    style={[styles.statusBtn, {
-                      backgroundColor: active ? opt.color + '26' : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)'),
-                      borderColor: active ? opt.color : colors.border,
-                    }]}
-                  >
-                    <Text style={[styles.statusBtnText, { color: active ? opt.color : colors.textMuted }]}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
+          )}
 
           {/* Launchers */}
           <View style={styles.launchers}>
@@ -1470,11 +1843,40 @@ export default function DriverPortal() {
         visible={arrivedVisible}
         onDismiss={() => {
           setArrivedVisible(false);
-          arrivedDismissedRef.current = true;
+          setProofModalVisible(true);
         }}
         destination={activeLoad?.destination}
         isDark={isDark}
         colors={colors}
+      />
+
+      {/* ── Load assignment (accept / deny) modal ── */}
+      <LoadAssignmentModal
+        visible={needsAcceptance}
+        load={activeLoad}
+        accepting={accepting}
+        denying={denying}
+        onAccept={handleAccept}
+        onDeny={handleDecline}
+      />
+
+      {/* ── Delivery proof modal ── */}
+      <DeliveryProofModal
+        visible={proofModalVisible}
+        load={activeLoad}
+        userId={userId}
+        colors={colors}
+        isDark={isDark}
+        onDismiss={() => {
+          setProofModalVisible(false);
+          arrivedDismissedRef.current = true;
+        }}
+        onSuccess={() => {
+          setProofModalVisible(false);
+          arrivedDismissedRef.current = true;
+          setActiveLoad(null);
+          showToast('Delivery confirmed!', 'success');
+        }}
       />
 
       {/* ── Dropdown menu ── */}
@@ -1488,6 +1890,11 @@ export default function DriverPortal() {
         truckInfo={truckInfo}
         onToggleTheme={handleToggleTheme}
         onSignOut={handleSignOut}
+        onOpenSettings={() => {
+          setMenuOpen(false);
+          Haptics.selectionAsync().catch(() => {});
+          router.push('/(driver)/settings');
+        }}
       />
     </View>
   );
@@ -1532,6 +1939,28 @@ const styles = StyleSheet.create({
   },
   driverPinIcon: { fontSize: 20 },
 
+  // Nav-mode puck (Google Maps style: blue chevron in a halo).
+  navPuckWrap: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
+  navPuckHalo: {
+    position: 'absolute', width: 60, height: 60, borderRadius: 99,
+    backgroundColor: 'rgba(37,99,235,0.18)',
+  },
+  navPuckCircle: {
+    width: 40, height: 40, borderRadius: 99,
+    backgroundColor: '#2563eb',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: '#fff',
+    shadowColor: '#2563eb', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.55, shadowRadius: 8, elevation: 6,
+  },
+  navPuckArrow: {
+    width: 0, height: 0,
+    borderLeftWidth: 8, borderRightWidth: 8, borderBottomWidth: 14,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+    borderBottomColor: '#fff',
+    marginBottom: 2,
+  },
+
   sheet: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
@@ -1547,15 +1976,101 @@ const styles = StyleSheet.create({
   sheetContent: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 18, gap: 12 },
 
   loadCard: { borderRadius: 18, padding: 16, borderWidth: 1, gap: 12 },
-  peek: { gap: 6 },
-  peekEyebrow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  peekEyebrowText: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.9, color: '#6366f1' },
-  peekChev: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
-  peekDest: { fontSize: 19, fontWeight: '800', letterSpacing: -0.5, lineHeight: 24 },
-  peekMeta: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginTop: 2 },
-  peekMetaStrong: { fontSize: 13, fontWeight: '700' },
-  peekMetaText: { fontSize: 13, fontWeight: '500' },
-  peekSep: { opacity: 0.5 },
+
+  loadCardWrap: {
+    borderRadius: 22, borderWidth: 1, overflow: 'hidden',
+  },
+  loadHero: {
+    paddingHorizontal: 18, paddingTop: 14, paddingBottom: 18, gap: 10,
+  },
+  loadHeroTop: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+  },
+  loadHeroPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  loadHeroDot: { width: 6, height: 6, borderRadius: 99, backgroundColor: '#fff' },
+  loadHeroPillText: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.9 },
+  loadHeroBadge: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+  },
+  loadHeroBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
+  loadHeroBody: { gap: 4 },
+  loadHeroRate: {
+    color: '#fff', fontSize: 38, fontWeight: '900', letterSpacing: -1.6,
+    textShadowColor: 'rgba(0,0,0,0.18)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8,
+  },
+  loadHeroMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  loadHeroMeta: { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '700', letterSpacing: 0.1 },
+  loadHeroDotSep: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '700' },
+
+  loadBody: { padding: 14, gap: 14 },
+
+  timeline: { flexDirection: 'row', gap: 12, paddingHorizontal: 2 },
+  timelineRail: { width: 20, alignItems: 'center', paddingVertical: 2 },
+  timelinePinPickup: {
+    width: 18, height: 18, borderRadius: 99, alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#22c55e', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 3,
+  },
+  timelinePinInner: { width: 7, height: 7, borderRadius: 99, backgroundColor: '#fff' },
+  timelineLine: {
+    flex: 1, width: 2, marginVertical: 4, alignItems: 'center', justifyContent: 'space-between',
+  },
+  timelineSeg: { width: 2, height: 4, borderRadius: 1 },
+  timelinePinDest: {
+    width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#ef4444', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
+  },
+  timelinePinFlag: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  timelineStops: { flex: 1, justifyContent: 'space-between', gap: 14, paddingVertical: 1 },
+  timelineStop: { gap: 3, minWidth: 0 },
+  timelineLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.9 },
+  timelinePlace: { fontSize: 15, fontWeight: '700', letterSpacing: -0.3, lineHeight: 19 },
+  timelineArrival: { fontSize: 11.5, fontWeight: '600', marginTop: 1 },
+
+  statStrip: {
+    flexDirection: 'row', borderRadius: 14, borderWidth: 1,
+    paddingVertical: 10,
+  },
+  statCell: { flex: 1, alignItems: 'center', gap: 2 },
+  statCellIcon: { fontSize: 13, fontWeight: '900' },
+  statCellValue: { fontSize: 15.5, fontWeight: '800', letterSpacing: -0.4 },
+  statCellUnit: { fontSize: 10, fontWeight: '700' },
+  statCellLabel: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.8, marginTop: 1 },
+  statCellDivider: { width: 1, marginVertical: 6 },
+
+  progressBlock: { gap: 7 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progressEndpoint: { flex: 1, fontSize: 12, fontWeight: '700', letterSpacing: -0.1 },
+  progressPctBig: { fontSize: 14, fontWeight: '900', letterSpacing: -0.3, marginHorizontal: 10 },
+  progressTrack2: { height: 8, borderRadius: 999, overflow: 'visible', position: 'relative' },
+  progressFill2: { height: 8, borderRadius: 999 },
+  progressMarker: { position: 'absolute', top: -3, width: 0, alignItems: 'center' },
+  progressMarkerDot: {
+    width: 14, height: 14, borderRadius: 99, backgroundColor: '#fff',
+    borderWidth: 3, borderColor: '#6366f1',
+    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 6, elevation: 4,
+  },
+
+  navStartBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    paddingVertical: 15, borderRadius: 14,
+    shadowColor: '#16a34a', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.36, shadowRadius: 18, elevation: 8,
+  },
+  navStartGlyph: { color: '#fff', fontSize: 14, fontWeight: '900' },
+  navStartText: { color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
+
+  detailsToggle: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 6,
+  },
+  detailsToggleText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
+  detailsToggleChev: { fontSize: 11, fontWeight: '700' },
 
   detailsBox: { borderRadius: 12, borderWidth: 1, padding: 10, gap: 6 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 3 },
@@ -1566,38 +2081,6 @@ const styles = StyleSheet.create({
     paddingVertical: 9, alignItems: 'center',
   },
 
-  divider: { height: 1, marginHorizontal: -2 },
-
-  route: { flexDirection: 'row', gap: 10 },
-  routeRail: { width: 18, alignItems: 'center', paddingVertical: 4 },
-  routeDotStart: { width: 11, height: 11, borderRadius: 99, borderWidth: 2.5 },
-  routeLine: { flex: 1, width: 2, marginVertical: 2, alignItems: 'center', justifyContent: 'space-between' },
-  routeLineSeg: { width: 2, height: 3, borderRadius: 1 },
-  routeDotEnd: {
-    width: 18, height: 18, borderRadius: 99, justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4,
-  },
-  routeFlag: { color: '#fff', fontSize: 9, fontWeight: '800' },
-  routeStops: { flex: 1, justifyContent: 'space-between', gap: 12 },
-  routeStop: { gap: 2, minWidth: 0 },
-  routeKind: { fontSize: 9.5, fontWeight: '700', letterSpacing: 0.9 },
-  routeName: { fontSize: 13.5, fontWeight: '600', lineHeight: 18 },
-
-  stats: { flexDirection: 'row', borderRadius: 14, overflow: 'hidden', gap: 1 },
-  stat: { flex: 1, paddingVertical: 12, paddingHorizontal: 4, alignItems: 'center', gap: 3 },
-  statLbl: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
-  statVal: { fontSize: 16, fontWeight: '800', letterSpacing: -0.4 },
-  statUnit: { fontSize: 9.5, fontWeight: '700' },
-
-  ctaWrap: { borderRadius: 12, overflow: 'hidden' },
-  cta: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 13,
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 14, elevation: 6,
-  },
-  ctaIcon: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  ctaText: { color: '#fff', fontSize: 14, fontWeight: '700', letterSpacing: 0.1 },
-
   loadEmpty: { alignItems: 'center', gap: 8, paddingVertical: 20 },
   loadEmptyBadge: {
     width: 52, height: 52, borderRadius: 14, backgroundColor: 'rgba(99,102,241,0.12)',
@@ -1605,17 +2088,6 @@ const styles = StyleSheet.create({
   },
   loadEmptyTitle: { fontSize: 15, fontWeight: '700' },
   loadEmptySub: { fontSize: 12.5, textAlign: 'center', lineHeight: 18, maxWidth: 240 },
-
-  statusCard: { borderRadius: 18, padding: 14, borderWidth: 1, gap: 12 },
-  statusHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statusTitle: { fontSize: 14, fontWeight: '700', letterSpacing: -0.1 },
-  statusSub: { fontSize: 11.5, marginTop: 1 },
-  statusToggle: { flexDirection: 'row', gap: 6 },
-  statusBtn: {
-    flex: 1, paddingVertical: 10, alignItems: 'center',
-    borderRadius: 10, borderWidth: 1.5,
-  },
-  statusBtnText: { fontSize: 13, fontWeight: '700' },
 
   launchers: { gap: 10 },
   launcher: {
@@ -1655,6 +2127,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2, shadowRadius: 12, elevation: 6,
   },
   recenterIcon: { fontSize: 22, color: '#6366f1' },
+  navRecenterWrap: { position: 'absolute', alignSelf: 'center', zIndex: 24 },
+  navRecenterPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 18, paddingVertical: 11, borderRadius: 999,
+    shadowColor: '#2563eb', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45, shadowRadius: 16, elevation: 10,
+  },
+  navRecenterIcon: { color: '#fff', fontSize: 16, fontWeight: '900' },
+  navRecenterText: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 0.2 },
 
   collapsedPreview: { overflow: 'hidden' },
   collapsedRow: {

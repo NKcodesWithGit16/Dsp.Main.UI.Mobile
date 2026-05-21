@@ -1,14 +1,15 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readToken } from '../utils/tokenStorage';
+import { securedFetch } from '../utils/securedFetch';
 
 const BASE = process.env.EXPO_PUBLIC_API_MAIN_URL || '';
 
 async function getToken() {
-  return AsyncStorage.getItem('userToken');
+  return readToken();
 }
 
 async function apiFetch(path, options = {}) {
   const token = await getToken();
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await securedFetch(`${BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -23,7 +24,7 @@ async function apiFetch(path, options = {}) {
 
 export async function ensureDispatcher(id, displayName, token) {
   const t = token || (await getToken());
-  const res = await fetch(`${BASE}/dispatchers/ensure`, {
+  const res = await securedFetch(`${BASE}/dispatchers/ensure`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -96,6 +97,38 @@ export async function updateDriverStatus(driverId, status) {
   });
 }
 
+export async function sendDriverHeartbeat(driverId, { lat, lng, speedKph }) {
+  return apiFetch(`/drivers/${driverId}/heartbeat`, {
+    method: 'POST',
+    body: JSON.stringify({ lat, lng, speedKph }),
+  });
+}
+
+export async function acceptLoad(loadId, driverId) {
+  return apiFetch(`/loads/${loadId}/accept`, {
+    method: 'POST',
+    body: JSON.stringify({ driverId }),
+  });
+}
+
+export async function declineLoad(loadId, driverId, reason) {
+  return apiFetch(`/loads/${loadId}/decline`, {
+    method: 'POST',
+    body: JSON.stringify({ driverId, reason: reason ?? null }),
+  });
+}
+
+export async function fetchDriver(driverId) {
+  return apiFetch(`/drivers/${driverId}`);
+}
+
+export async function updateDriverSettings(driverId, settings) {
+  return apiFetch(`/drivers/${driverId}/settings`, {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
+  });
+}
+
 export async function fetchBrokerLoads(brokerId) {
   const data = await apiFetch(`/loads?brokerId=${brokerId}&pageSize=100`);
   return data?.items ?? data ?? [];
@@ -127,4 +160,50 @@ export async function sendBrokerMessage(loadId, dispatcherId, text, brokerId) {
     method: 'POST',
     body: JSON.stringify({ message: text, senderId: brokerId, senderRole: 'broker' }),
   });
+}
+
+export async function registerPushToken(driverId, pushToken) {
+  return apiFetch(`/drivers/${driverId}/push-token`, {
+    method: 'PATCH',
+    body: JSON.stringify({ pushToken }),
+  });
+}
+
+export async function uploadDeliveryPhoto(imageUri) {
+  const token = await getToken();
+  const fileName = `proof_${Date.now()}.jpg`;
+  const formData = new FormData();
+  formData.append('file', { uri: imageUri, name: fileName, type: 'image/jpeg' });
+
+  const res = await securedFetch(`${BASE}/documents/upload-file`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Upload failed ${res.status}`);
+  return res.json();
+}
+
+export async function confirmDelivery(loadId, driverId, userId, photoUrl, fileName, notes) {
+  await apiFetch(`/loads/${loadId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'Delivered' }),
+  });
+
+  if (photoUrl) {
+    await apiFetch('/documents', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 3,
+        url: photoUrl,
+        fileName: fileName || 'proof.jpg',
+        contentType: 'image/jpeg',
+        loadId,
+        uploadedById: userId,
+        notes: notes || null,
+      }),
+    });
+  }
 }

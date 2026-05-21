@@ -743,7 +743,7 @@ function InquiriesTab({ inquiries, brokerId }) {
           </ScrollView>
         )}
 
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[inqS.inputBar, {
             backgroundColor: isDark ? 'rgba(12,18,35,0.95)' : colors.surface1,
             borderTopColor: colors.border,

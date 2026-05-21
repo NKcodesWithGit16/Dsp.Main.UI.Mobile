@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { readUserFromToken } from '../utils/auth';
+import { readToken, writeToken, clearToken } from '../utils/tokenStorage';
 
 const AuthContext = createContext(null);
 
@@ -16,7 +17,7 @@ export function AuthProvider({ children }) {
     Promise.all([
       AsyncStorage.getItem('userName'),
       AsyncStorage.getItem('userEmail'),
-      AsyncStorage.getItem('userToken'),
+      readToken(),
     ]).then(([name, email, token]) => {
       const claims = readUserFromToken(token);
       if (claims && claims.userId) {
@@ -40,8 +41,8 @@ export function AuthProvider({ children }) {
     await AsyncStorage.multiSet([
       ['userName', name || ''],
       ['userEmail', email || ''],
-      ['userToken', token || ''],
     ]);
+    await writeToken(token || '');
     setUserId(claims.userId);
     setUserName(name || '');
     setUserEmail(email || '');
@@ -50,7 +51,8 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    await AsyncStorage.multiRemove(['userId', 'userName', 'userEmail', 'userToken', 'userRole']);
+    await AsyncStorage.multiRemove(['userId', 'userName', 'userEmail', 'userRole']);
+    await clearToken();
     setUserId(null);
     setUserName('');
     setUserEmail('');

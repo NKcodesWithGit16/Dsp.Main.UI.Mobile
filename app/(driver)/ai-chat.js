@@ -170,6 +170,11 @@ export default function AiChat() {
         />
       </View>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
       <FlatList
         ref={listRef}
         data={messages}
@@ -256,37 +261,36 @@ export default function AiChat() {
         </View>
       )}
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.inputBar, {
-          borderTopColor: colors.border,
-          backgroundColor: isDark ? 'rgba(12,18,35,0.96)' : colors.surface1,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
-        }]}>
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ask AI assistant…"
-            placeholderTextColor={colors.textDisabled}
-            style={[styles.input, {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.surface2,
-              borderColor: colors.border,
-              color: colors.textPrimary,
-            }]}
-            multiline
-            maxLength={600}
-            editable={!loading}
-          />
-          <TouchableOpacity
-            disabled={!input.trim() || loading}
-            onPress={send}
-            activeOpacity={0.85}
-            style={[styles.sendWrap, { opacity: input.trim() && !loading ? 1 : 0.4 }]}
-          >
-            <LinearGradient colors={['#7c3aed', '#6366f1']} style={styles.send}>
-              <Text style={styles.sendIcon}>➤</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.inputBar, {
+        borderTopColor: colors.border,
+        backgroundColor: isDark ? 'rgba(12,18,35,0.96)' : colors.surface1,
+        paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+      }]}>
+        <TextInput
+          value={input}
+          onChangeText={setInput}
+          placeholder="Ask AI assistant…"
+          placeholderTextColor={colors.textDisabled}
+          style={[styles.input, {
+            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.surface2,
+            borderColor: colors.border,
+            color: colors.textPrimary,
+          }]}
+          multiline
+          maxLength={600}
+          editable={!loading}
+        />
+        <TouchableOpacity
+          disabled={!input.trim() || loading}
+          onPress={send}
+          activeOpacity={0.85}
+          style={[styles.sendWrap, { opacity: input.trim() && !loading ? 1 : 0.4 }]}
+        >
+          <LinearGradient colors={['#7c3aed', '#6366f1']} style={styles.send}>
+            <Text style={styles.sendIcon}>➤</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
       </KeyboardAvoidingView>
     </Animated.View>
   );

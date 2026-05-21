@@ -151,7 +151,11 @@ export default function DispatcherChat() {
         />
       </View>
 
-      {/* Body */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator color={colors.accent} />
@@ -249,36 +253,35 @@ export default function DispatcherChat() {
       </ScrollView>
 
       {/* Input */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.inputBar, {
-          borderTopColor: colors.border,
-          backgroundColor: isDark ? 'rgba(12,18,35,0.96)' : colors.surface1,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
-        }]}>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Message dispatcher…"
-            placeholderTextColor={colors.textDisabled}
-            style={[styles.input, {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.surface2,
-              borderColor: colors.border,
-              color: colors.textPrimary,
-            }]}
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            disabled={!text.trim() || sending}
-            onPress={() => send()}
-            activeOpacity={0.85}
-            style={[styles.sendWrap, { opacity: text.trim() && !sending ? 1 : 0.4 }]}
-          >
-            <LinearGradient colors={['#6366f1', '#8b5cf6']} style={styles.send}>
-              <Text style={styles.sendIcon}>➤</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.inputBar, {
+        borderTopColor: colors.border,
+        backgroundColor: isDark ? 'rgba(12,18,35,0.96)' : colors.surface1,
+        paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+      }]}>
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          placeholder="Message dispatcher…"
+          placeholderTextColor={colors.textDisabled}
+          style={[styles.input, {
+            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.surface2,
+            borderColor: colors.border,
+            color: colors.textPrimary,
+          }]}
+          multiline
+          maxLength={500}
+        />
+        <TouchableOpacity
+          disabled={!text.trim() || sending}
+          onPress={() => send()}
+          activeOpacity={0.85}
+          style={[styles.sendWrap, { opacity: text.trim() && !sending ? 1 : 0.4 }]}
+        >
+          <LinearGradient colors={['#6366f1', '#8b5cf6']} style={styles.send}>
+            <Text style={styles.sendIcon}>➤</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
       </KeyboardAvoidingView>
     </Animated.View>
   );
