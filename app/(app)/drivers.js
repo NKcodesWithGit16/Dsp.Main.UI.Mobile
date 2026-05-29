@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput,
   Modal, ScrollView, KeyboardAvoidingView, Platform, Dimensions,
@@ -508,7 +508,7 @@ function AddDriverModal({ visible, onClose, colors, dispatcherId }) {
                 <Ionicons name="checkmark" size={32} color={colors.success} />
               </View>
               <Text style={[addS.title, { color: colors.textPrimary, marginTop: spacing[4] }]}>Invite Sent</Text>
-              <Text style={[addS.sub, { color: colors.textMuted }]}>Driver will receive an invite to join dispatchR.</Text>
+              <Text style={[addS.sub, { color: colors.textMuted }]}>Driver will receive an invite to join HitchLink.</Text>
               <TouchableOpacity onPress={handleClose} style={addS.btnWrap}>
                 <LinearGradient colors={['#6366f1', '#4f46e5']} style={addS.btn}>
                   <Text style={addS.btnText}>Done</Text>

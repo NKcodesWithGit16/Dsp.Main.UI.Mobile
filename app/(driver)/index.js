@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+﻿import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
   Dimensions, Platform, Linking, Alert, Animated, PanResponder, Easing,
@@ -867,7 +867,7 @@ export default function DriverPortal() {
 
   const handleSignOut = () => {
     setMenuOpen(false);
-    Alert.alert('Sign Out', 'Sign out of DispatchR?', [
+    Alert.alert('Sign Out', 'Sign out of HitchLink?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign Out', style: 'destructive', onPress: async () => {
         await logout();

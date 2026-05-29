@@ -1,15 +1,15 @@
-const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+﻿const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
 
 export default {
   expo: {
-    name: "dispatchR",
-    slug: "dispatchR_mobileApp",
+    name: "HitchLink",
+    slug: "hitchlink_mobileApp",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
-    scheme: "dispatchr",
+    scheme: "HitchLink",
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
@@ -17,19 +17,19 @@ export default {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.dispatchr.app",
+      bundleIdentifier: "com.HitchLink.app",
       config: {
         googleMapsApiKey,
       },
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
-          "DispatchR uses your location to show your position on the map and share ETA with your dispatcher.",
+          "HitchLink uses your location to show your position on the map and share ETA with your dispatcher.",
         NSLocationAlwaysAndWhenInUseUsageDescription:
-          "DispatchR uses your location to share live position and ETA with your dispatcher while you drive.",
+          "HitchLink uses your location to share live position and ETA with your dispatcher while you drive.",
         NSCameraUsageDescription:
-          "DispatchR uses your camera to capture proof of delivery photos.",
+          "HitchLink uses your camera to capture proof of delivery photos.",
         NSPhotoLibraryUsageDescription:
-          "DispatchR accesses your photo library to attach delivery proof images.",
+          "HitchLink accesses your photo library to attach delivery proof images.",
         UIBackgroundModes: ["remote-notification"],
       },
     },
@@ -38,7 +38,7 @@ export default {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#08090e",
       },
-      package: "com.dispatchr.app",
+      package: "com.HitchLink.app",
       config: {
         googleMaps: {
           apiKey: googleMapsApiKey,
@@ -73,7 +73,7 @@ export default {
         "expo-location",
         {
           locationAlwaysAndWhenInUsePermission:
-            "DispatchR uses your location to share live position and ETA with your dispatcher while you drive.",
+            "HitchLink uses your location to share live position and ETA with your dispatcher while you drive.",
         },
       ],
       [
@@ -82,7 +82,7 @@ export default {
           icon: "./assets/icon.png",
           color: "#6366f1",
           androidMode: "default",
-          androidCollapsedTitle: "DispatchR",
+          androidCollapsedTitle: "HitchLink",
         },
       ],
       "expo-image-picker",

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -26,7 +26,7 @@ export function usePushNotifications(userId, onForegroundNotification) {
       try {
         if (Platform.OS === 'android') {
           await Notifications.setNotificationChannelAsync('default', {
-            name: 'DispatchR',
+            name: 'HitchLink',
             importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 250, 250, 250],
             lightColor: '#6366f1',

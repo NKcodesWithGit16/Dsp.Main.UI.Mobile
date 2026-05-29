@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator, Share,
@@ -30,7 +30,7 @@ function buildContext(loads, drivers) {
   const offline = drivers.filter(d => statusOf(d) === 'offline').length;
   const hot     = loads.filter(l => l.status === 'Hot' || l.status === 'hot').length;
   const booked  = loads.filter(l => l.status === 'Booked' || l.status === 'booked').length;
-  return `You are a dispatch assistant for DispatchR. Current fleet: ${drivers.length} drivers (${moving} moving, ${idle} idle, ${offline} offline). Hot loads: ${hot}. Booked loads: ${booked}. Total loads: ${loads.length}. Answer concisely and professionally.`;
+  return `You are a dispatch assistant for HitchLink. Current fleet: ${drivers.length} drivers (${moving} moving, ${idle} idle, ${offline} offline). Hot loads: ${hot}. Booked loads: ${booked}. Total loads: ${loads.length}. Answer concisely and professionally.`;
 }
 
 async function callAI(messages, loads, drivers) {
@@ -55,7 +55,7 @@ async function callAI(messages, loads, drivers) {
     const total  = booked.reduce((s, l) => s + (l.rate || 0), 0);
     return `**Revenue**\n• Booked loads: ${booked.length}\n• Total: $${total.toLocaleString()}\n• Avg rate: $${booked.length ? Math.round(total / booked.length).toLocaleString() : 0}`;
   }
-  return `I'm your **DispatchR AI** assistant. I can help with:\n• Load analysis & hot load alerts\n• Fleet status & driver availability\n• Revenue & rate analysis\n• Dispatch decisions\n\nAsk me anything about your fleet!`;
+  return `I'm your **HitchLink AI** assistant. I can help with:\n• Load analysis & hot load alerts\n• Fleet status & driver availability\n• Revenue & rate analysis\n• Dispatch decisions\n\nAsk me anything about your fleet!`;
 }
 
 export default function AiChatScreen() {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
@@ -204,7 +204,7 @@ export default function LoginScreen() {
           </GlassCard>
 
           <Text style={[styles.footer, { color: colors.textDisabled }]}>
-            © 2026 DispatchR · Logistics simplified
+            © 2026 HitchLink · Logistics simplified
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

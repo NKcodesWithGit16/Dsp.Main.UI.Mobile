@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+﻿import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightColors, darkColors } from '../theme/colors';
 
@@ -8,7 +8,7 @@ export function ThemeProvider({ children }) {
   const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
-    AsyncStorage.getItem('dispatchr-theme').then((val) => {
+    AsyncStorage.getItem('HitchLink-theme').then((val) => {
       if (val) setIsDark(val === 'dark');
     });
   }, []);
@@ -16,7 +16,7 @@ export function ThemeProvider({ children }) {
   const toggleTheme = () => {
     const next = !isDark;
     setIsDark(next);
-    AsyncStorage.setItem('dispatchr-theme', next ? 'dark' : 'light');
+    AsyncStorage.setItem('HitchLink-theme', next ? 'dark' : 'light');
   };
 
   const colors = isDark ? darkColors : lightColors;

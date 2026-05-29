@@ -37,6 +37,12 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# IDE
+.idea/
+
+# Claude Code
+.claude/
+
 # generated native folders
 /ios
 /android
