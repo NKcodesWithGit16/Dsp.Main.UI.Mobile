@@ -62,10 +62,10 @@ export default function LoadAssignmentModal({
         <Animated.View style={[s.card, {
           transform: [{ scale }],
           backgroundColor: isDark ? 'rgba(18,22,38,0.96)' : '#ffffff',
-          borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.2)',
+          borderColor: isDark ? 'rgba(1,147,171,0.35)' : 'rgba(1,147,171,0.2)',
         }]}>
           <LinearGradient
-            colors={['#6366f1', '#8b5cf6', '#ec4899']}
+            colors={['#04285a', '#0193ab', '#5dd0e3']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={s.topAccent}
@@ -126,7 +126,7 @@ export default function LoadAssignmentModal({
           </View>
 
           <View style={s.metaRow}>
-            <View style={[s.chip, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)', borderColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.2)' }]}>
+            <View style={[s.chip, { backgroundColor: isDark ? 'rgba(1,147,171,0.15)' : 'rgba(1,147,171,0.08)', borderColor: isDark ? 'rgba(1,147,171,0.3)' : 'rgba(1,147,171,0.2)' }]}>
               <Text style={[s.chipText, { color: colors.accent }]}>{equipment}</Text>
             </View>
             {load.commodity && (
@@ -179,7 +179,7 @@ export default function LoadAssignmentModal({
               style={[s.btnAcceptWrap, { opacity: busy ? 0.7 : 1 }]}
             >
               <LinearGradient
-                colors={['#6366f1', '#8b5cf6']}
+                colors={['#04285a', '#0193ab']}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 style={s.btnAccept}
               >
@@ -218,8 +218,8 @@ const s = StyleSheet.create({
     gap: 10, marginBottom: 18,
   },
   headerEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1.6 },
-  sparkleLeft: { fontSize: 14, color: '#8b5cf6' },
-  sparkleRight: { fontSize: 14, color: '#ec4899' },
+  sparkleLeft: { fontSize: 14, color: '#0193ab' },
+  sparkleRight: { fontSize: 14, color: '#5dd0e3' },
 
   routeBlock: { marginBottom: 18 },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },

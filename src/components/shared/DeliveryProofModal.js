@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, Image,
+  View, Text, TouchableOpacity, StyleSheet, Modal,
   TextInput, ActivityIndicator, Alert, ScrollView, Platform,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadDeliveryPhoto, confirmDelivery } from '../../api/main';
+import CachedImage from './CachedImage';
 
 export default function DeliveryProofModal({ visible, onSuccess, onDismiss, load, userId, colors, isDark }) {
   const [photoUri, setPhotoUri] = useState(null);
@@ -88,7 +89,7 @@ export default function DeliveryProofModal({ visible, onSuccess, onDismiss, load
 
             {photoUri ? (
               <View style={s.previewWrap}>
-                <Image source={{ uri: photoUri }} style={s.preview} resizeMode="cover" />
+                <CachedImage source={{ uri: photoUri }} style={s.preview} contentFit="cover" accessibilityLabel="Delivery proof photo" />
                 <TouchableOpacity style={[s.changeBtn, { borderColor: colors.border }]} onPress={() => setPhotoUri(null)}>
                   <Text style={[s.changeBtnText, { color: colors.textMuted }]}>Remove</Text>
                 </TouchableOpacity>

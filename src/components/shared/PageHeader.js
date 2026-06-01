@@ -2,13 +2,22 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { spacing, typography, radius, gradients, glass, shadow } from '../../theme/colors';
+import Icon from './Icon';
 
+/**
+ * Sticky liquid-glass page header — mirrors the web app's <Header> bar.
+ *
+ *   • BlurView backdrop + fill
+ *   • Top-aligned inset highlight on the bottom border (teal-tinted)
+ *   • Title + optional subtitle on the left
+ *   • Theme toggle + brand-gradient avatar on the right
+ *   • rightAction slot for custom controls between title and avatar
+ */
 export default function PageHeader({ title, subtitle, rightAction }) {
   const { colors, isDark, toggleTheme } = useTheme();
   const { userName, logout } = useAuth();
@@ -20,25 +29,27 @@ export default function PageHeader({ title, subtitle, rightAction }) {
     : 'U';
 
   const fill   = isDark ? glass.fillDarkStrong : glass.fillLightStrong;
-  const border = isDark ? glass.borderDark : 'rgba(99,102,241,0.18)';
+  const border = isDark ? glass.borderDark : 'rgba(1,147,171,0.18)';
   const blurIntensity = Platform.OS === 'ios'
     ? (isDark ? glass.blurIosDark : glass.blurIosLight)
     : (isDark ? glass.blurAndDark : glass.blurAndLight);
 
   return (
-    <View style={[s.wrap, { paddingTop: insets.top, borderBottomColor: border }]}>
+    <View style={[s.wrap, { paddingTop: insets.top }]}>
       <BlurView
         intensity={blurIntensity}
         tint={isDark ? 'dark' : 'light'}
         style={StyleSheet.absoluteFill}
       />
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: fill }]} />
+      {/* Bottom hairline border — brand teal in light, white-fade in dark */}
+      <View pointerEvents="none" style={[s.bottomBorder, { backgroundColor: border }]} />
 
       <View style={s.inner}>
         <View style={s.left}>
-          <Text style={[s.title, { color: colors.textPrimary }]}>{title}</Text>
+          <Text style={[s.title, { color: colors.textPrimary }]} numberOfLines={1}>{title}</Text>
           {subtitle ? (
-            <Text style={[s.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
+            <Text style={[s.subtitle, { color: colors.textMuted }]} numberOfLines={1}>{subtitle}</Text>
           ) : null}
         </View>
 
@@ -49,14 +60,14 @@ export default function PageHeader({ title, subtitle, rightAction }) {
             style={[
               s.iconBtn,
               {
-                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(99,102,241,0.08)',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(1,147,171,0.08)',
                 borderColor: border,
               },
             ]}
             activeOpacity={0.7}
           >
-            <Ionicons
-              name={isDark ? 'sunny-outline' : 'moon-outline'}
+            <Icon
+              name={isDark ? 'sun' : 'moon'}
               size={15}
               color={colors.textMuted}
             />
@@ -81,7 +92,12 @@ export default function PageHeader({ title, subtitle, rightAction }) {
 }
 
 const s = StyleSheet.create({
-  wrap: { borderBottomWidth: 1, overflow: 'hidden' },
+  wrap: { overflow: 'hidden' },
+  bottomBorder: {
+    position: 'absolute',
+    left: 0, right: 0, bottom: 0,
+    height: StyleSheet.hairlineWidth,
+  },
   inner: {
     flexDirection: 'row',
     alignItems: 'center',

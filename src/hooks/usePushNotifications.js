@@ -29,7 +29,7 @@ export function usePushNotifications(userId, onForegroundNotification) {
             name: 'HitchLink',
             importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#6366f1',
+            lightColor: '#0193ab',
           });
         }
 

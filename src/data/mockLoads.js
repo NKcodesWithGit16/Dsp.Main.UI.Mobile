@@ -1,3 +1,16 @@
+/**
+ * DEV-ONLY fixtures. Do not import from production code paths.
+ * The real load list comes from `src/api/main.js#fetchLoads`. These exist
+ * for Storybook / Jest snapshot / local "no backend" demo modes only.
+ *
+ * If you find yourself importing this file in screen code, stop — wire the
+ * mock toggle through the API layer instead so the swap is one place.
+ */
+if (!__DEV__) {
+  // eslint-disable-next-line no-console
+  console.warn('[hitchlink] mockLoads imported in production build — this should never happen.');
+}
+
 // ── Brokers ──────────────────────────────────────────────────────────────────
 const BROKERS = [
     { name: "Coyote Logistics",        code: "CY",  phone: "(312) 555-0184", email: "loads@coyote.com" },

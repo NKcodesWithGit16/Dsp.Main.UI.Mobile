@@ -1,23 +1,27 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, Animated, PanResponder,
+  View, Text, TextInput, FlatList, StyleSheet,
+  KeyboardAvoidingView, Platform, Animated, PanResponder, Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+
 import { useTheme } from '../../src/context/ThemeContext';
-import { useAuth } from '../../src/context/AuthContext';
+import { useAuth }  from '../../src/context/AuthContext';
+
 import GradientHeader from '../../src/components/shared/GradientHeader';
-import GlassCard from '../../src/components/shared/GlassCard';
-import { gradients } from '../../src/theme/colors';
+import GlassCard      from '../../src/components/shared/GlassCard';
+import Icon           from '../../src/components/shared/Icon';
+import AnimatedPressable from '../../src/components/shared/AnimatedPressable';
+import { gradients, shadow } from '../../src/theme/colors';
 
 const SUGGESTIONS = [
-  'How many HOS hours do I have left?',
-  'Where is the nearest truck stop?',
-  'What is the speed limit here?',
-  'Plan my rest break',
+  { icon: 'clock',  text: 'How many HOS hours do I have left?' },
+  { icon: 'pin',    text: 'Where is the nearest truck stop?' },
+  { icon: 'info',   text: 'What is the speed limit here?' },
+  { icon: 'bell',   text: 'Plan my rest break' },
 ];
 
 function TypingDots({ color }) {
@@ -52,8 +56,37 @@ function TypingDots({ color }) {
   );
 }
 
-function SparkleIcon({ size = 14, color = '#8b5cf6' }) {
-  return <Text style={{ fontSize: size, color }}>✦</Text>;
+function AiHeaderAvatar() {
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  const ring = {
+    transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] }) }],
+    opacity:   pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] }),
+  };
+  return (
+    <View style={styles.headerAvatar}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            width: 40, height: 40, borderRadius: 20,
+            backgroundColor: 'rgba(255,255,255,0.4)',
+          },
+          ring,
+        ]}
+      />
+      <Icon name="sparkles" size={18} color="#fff" />
+    </View>
+  );
 }
 
 export default function AiChat() {
@@ -63,9 +96,9 @@ export default function AiChat() {
   const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [input, setInput]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState(null);
   const listRef = useRef(null);
 
   // Swipe-down-to-dismiss
@@ -100,17 +133,17 @@ export default function AiChat() {
   const fallbackReply = (q) => {
     const lower = q.toLowerCase();
     if (lower.includes('hos') || lower.includes('hour'))
-      return '😴 HOS regulations require an 11-hour driving window followed by 10 hours rest. Trucker Path app is great for finding nearby truck stops and rest areas.';
+      return 'HOS regulations require an 11-hour driving window followed by 10 hours rest. Trucker Path is great for finding nearby truck stops and rest areas.';
     if (lower.includes('route') || lower.includes('direction'))
-      return '📍 For turn-by-turn navigation, use Google Maps or Waze. I can help you plan rest stops and weigh stations along your route.';
+      return 'For turn-by-turn navigation, use Google Maps or Waze. I can help you plan rest stops and weigh stations along your route.';
     if (lower.includes('weather'))
-      return '🌤 Check Weather.com or the NOAA app for real-time road weather. Want tips for driving in specific conditions?';
+      return 'Check Weather.com or the NOAA app for real-time road weather. Want tips for driving in specific conditions?';
     if (lower.includes('truck stop') || lower.includes('rest'))
-      return '⛽ Trucker Path and Pilot/Flying J apps show parking availability live. Most stops near interstates have truck parking.';
+      return 'Trucker Path and Pilot/Flying J apps show parking availability live. Most stops near interstates have truck parking.';
     if (lower.includes('load') || lower.includes('delivery'))
-      return '📦 Your active load info is on the main screen. Contact your dispatcher for specific questions about the assignment.';
+      return 'Your active load info is on the main screen. Contact your dispatcher for specific questions about the assignment.';
     if (lower.includes('speed'))
-      return '🛣 Speed limits vary by state for CMVs — many states have a lower truck speed. Check posted signs; when in doubt, stay at or below 65 mph.';
+      return 'Speed limits vary by state for CMVs — many states have a lower truck speed. Check posted signs; when in doubt, stay at or below 65 mph.';
     return `I'm your road assistant — I can help with routes, HOS compliance, weather, rest stops, and load questions. What do you need?`;
   };
 
@@ -127,8 +160,6 @@ export default function AiChat() {
     setLoading(true);
 
     try {
-      // AI calls were removed from the client for security. Until the backend
-      // proxy ships, use the local rule-based fallback.
       await new Promise(r => setTimeout(r, 700));
       setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: fallbackReply(body) } : m));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -145,27 +176,25 @@ export default function AiChat() {
     <Animated.View
       style={[styles.container, { backgroundColor: colors.pageBg, transform: [{ translateY: dragY }] }]}
     >
-      {/* Header (swipe-down capture area) */}
       <View {...pan.panHandlers}>
         <GradientHeader
-          gradient={gradients.heroAi}
+          gradient={gradients.brand}
           eyebrow="AI Assistant"
           title="Road Copilot"
-          subtitle={loading ? 'Thinking…' : 'Powered by Claude'}
+          subtitle={loading ? 'Thinking…' : 'Ask anything'}
           onBack={() => { Haptics.selectionAsync().catch(() => {}); router.back(); }}
-          centerSlot={
-            <View style={styles.headerAvatar}>
-              <SparkleIcon size={18} color="#fff" />
-            </View>
-          }
+          centerSlot={<AiHeaderAvatar />}
           rightSlot={messages.length > 0 ? (
-            <TouchableOpacity
-              onPress={() => { Haptics.selectionAsync().catch(() => {}); setMessages([]); setError(null); }}
+            <AnimatedPressable
+              onPress={() => { setMessages([]); setError(null); }}
+              hapticStyle="light"
+              pressedScale={0.93}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={styles.clearBtn}
             >
-              <Text style={styles.headerClear}>Clear</Text>
-            </TouchableOpacity>
+              <View style={styles.clearBtn}>
+                <Text style={styles.headerClear}>Clear</Text>
+              </View>
+            </AnimatedPressable>
           ) : null}
         />
       </View>
@@ -181,13 +210,17 @@ export default function AiChat() {
         keyExtractor={(m) => m.id}
         style={{ flex: 1 }}
         contentContainerStyle={styles.listContent}
+        removeClippedSubviews
+        initialNumToRender={20}
+        maxToRenderPerBatch={10}
+        windowSize={11}
         ListEmptyComponent={
           <View style={styles.empty}>
             <LinearGradient
-              colors={['rgba(99,102,241,0.22)', 'rgba(139,92,246,0.22)']}
-              style={styles.emptyAvatar}
+              colors={['rgba(1,147,171,0.30)', 'rgba(6,182,212,0.20)']}
+              style={[styles.emptyAvatar, shadow.glow]}
             >
-              <SparkleIcon size={28} color="#a78bfa" />
+              <Icon name="sparkles" size={36} color="#0193ab" />
             </LinearGradient>
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>AI Assistant</Text>
             <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
@@ -195,18 +228,21 @@ export default function AiChat() {
             </Text>
             <View style={styles.suggestions}>
               {SUGGESTIONS.map(q => (
-                <TouchableOpacity
-                  key={q}
-                  onPress={() => { Haptics.selectionAsync().catch(() => {}); setInput(q); }}
-                  activeOpacity={0.85}
-                  style={{ width: '100%' }}
+                <AnimatedPressable
+                  key={q.text}
+                  onPress={() => { Haptics.selectionAsync().catch(() => {}); setInput(q.text); }}
+                  hapticStyle="selection"
+                  pressedScale={0.985}
+                  containerStyle={{ width: '100%' }}
                 >
                   <GlassCard accent cornerRadius={14} contentStyle={styles.suggestionInner}>
-                    <SparkleIcon size={13} color={colors.accent} />
-                    <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>{q}</Text>
-                    <Text style={[styles.suggestionChev, { color: colors.textMuted }]}>›</Text>
+                    <View style={styles.suggestionIcon}>
+                      <Icon name={q.icon} size={14} color={colors.accent} />
+                    </View>
+                    <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>{q.text}</Text>
+                    <Icon name="chevron" size={14} color={colors.textMuted} />
                   </GlassCard>
-                </TouchableOpacity>
+                </AnimatedPressable>
               ))}
             </View>
           </View>
@@ -216,14 +252,14 @@ export default function AiChat() {
           return (
             <View style={[styles.msgRow, isUser && styles.msgRowRight]}>
               {!isUser && (
-                <View style={[styles.aiAvatar, { backgroundColor: isDark ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.12)' }]}>
-                  <SparkleIcon size={11} color="#a78bfa" />
+                <View style={[styles.aiAvatar, { backgroundColor: 'rgba(1,147,171,0.20)' }]}>
+                  <Icon name="sparkles" size={12} color="#0193ab" />
                 </View>
               )}
               {isUser ? (
                 <View style={styles.bubbleWithTail}>
                   <LinearGradient
-                    colors={['#6366f1', '#8b5cf6']}
+                    colors={gradients.brand}
                     style={[styles.bubble, styles.bubbleMe]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
@@ -280,16 +316,21 @@ export default function AiChat() {
           maxLength={600}
           editable={!loading}
         />
-        <TouchableOpacity
+        <AnimatedPressable
           disabled={!input.trim() || loading}
           onPress={send}
-          activeOpacity={0.85}
-          style={[styles.sendWrap, { opacity: input.trim() && !loading ? 1 : 0.4 }]}
+          hapticStyle="light"
+          pressedScale={0.9}
+          containerStyle={{ opacity: input.trim() && !loading ? 1 : 0.4 }}
         >
-          <LinearGradient colors={['#7c3aed', '#6366f1']} style={styles.send}>
-            <Text style={styles.sendIcon}>➤</Text>
+          <LinearGradient
+            colors={gradients.brand}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={[styles.send, shadow.glow]}
+          >
+            <Icon name="send" size={17} color="#fff" />
           </LinearGradient>
-        </TouchableOpacity>
+        </AnimatedPressable>
       </View>
       </KeyboardAvoidingView>
     </Animated.View>
@@ -302,26 +343,29 @@ const styles = StyleSheet.create({
   clearBtn: {
     paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)',
   },
-  headerClear: { color: '#fff', fontSize: 12.5, fontWeight: '700', letterSpacing: 0.3 },
+  headerClear: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.4 },
 
   listContent: { padding: 14, gap: 10, flexGrow: 1 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 8 },
   emptyAvatar: {
-    width: 78, height: 78, borderRadius: 99,
+    width: 88, height: 88, borderRadius: 99,
     alignItems: 'center', justifyContent: 'center', marginBottom: 10,
-    shadowColor: '#8b5cf6', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35, shadowRadius: 18, elevation: 6,
   },
-  emptyTitle: { fontSize: 17, fontWeight: '800', letterSpacing: -0.3 },
+  emptyTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
   emptyHint: { fontSize: 13, textAlign: 'center', lineHeight: 19, maxWidth: 280, marginBottom: 14 },
   suggestions: { width: '100%', gap: 10, marginTop: 8 },
   suggestionInner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 13, paddingHorizontal: 14,
+    paddingVertical: 12, paddingHorizontal: 14,
   },
-  suggestionText: { flex: 1, fontSize: 13, fontWeight: '500' },
-  suggestionChev: { fontSize: 18, fontWeight: '300' },
+  suggestionIcon: {
+    width: 30, height: 30, borderRadius: 8,
+    backgroundColor: 'rgba(1,147,171,0.14)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  suggestionText: { flex: 1, fontSize: 13, fontWeight: '600' },
 
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 7 },
   msgRowRight: { justifyContent: 'flex-end' },
@@ -331,11 +375,11 @@ const styles = StyleSheet.create({
   bubble: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 16 },
   bubbleMe: { borderBottomRightRadius: 4 },
   bubbleThem: { borderBottomLeftRadius: 4, borderWidth: 1 },
-  bubbleTextMe: { color: '#fff', fontSize: 13.5, lineHeight: 20 },
-  bubbleTextThem: { fontSize: 13.5, lineHeight: 20 },
+  bubbleTextMe: { color: '#fff', fontSize: 13.5, lineHeight: 20, fontWeight: '500' },
+  bubbleTextThem: { fontSize: 13.5, lineHeight: 20, fontWeight: '500' },
   tailMe: {
     position: 'absolute', right: -3, bottom: 0,
-    width: 10, height: 10, backgroundColor: '#8b5cf6',
+    width: 10, height: 10, backgroundColor: '#0193ab',
     borderBottomLeftRadius: 10,
     transform: [{ rotate: '45deg' }],
   },
@@ -350,17 +394,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 14, marginBottom: 8, padding: 10,
     borderRadius: 10, borderWidth: 1,
   },
-  errorText: { color: '#ef4444', fontSize: 12.5, fontWeight: '500' },
+  errorText: { color: '#ef4444', fontSize: 12.5, fontWeight: '600' },
 
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 10, paddingTop: 10, borderTopWidth: 1 },
   input: {
     flex: 1, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10,
-    borderWidth: 1.5, fontSize: 13.5, maxHeight: 120, minHeight: 42,
+    borderWidth: 1.5, fontSize: 13.5, maxHeight: 120, minHeight: 42, fontWeight: '500',
   },
-  sendWrap: { width: 42, height: 42, borderRadius: 99, overflow: 'hidden' },
   send: {
     width: 42, height: 42, borderRadius: 99, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#7c3aed', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4,
   },
-  sendIcon: { color: '#fff', fontSize: 16, fontWeight: '800', marginLeft: 1 },
 });

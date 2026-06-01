@@ -29,6 +29,11 @@ import { spacing, glass, shadow, gradients } from '../../src/theme/colors';
 import { darkMapStyle, lightMapStyle } from '../../src/theme/mapStyles';
 import DeliveryProofModal from '../../src/components/shared/DeliveryProofModal';
 import { usePushNotifications } from '../../src/hooks/usePushNotifications';
+import Icon from '../../src/components/shared/Icon';
+import LiveDot from '../../src/components/shared/LiveDot';
+import BrandLogo from '../../src/components/shared/BrandLogo';
+import HOSCountdown from '../../src/components/shared/HOSCountdown';
+import log from '../../src/utils/logger';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const SHEET_COLLAPSED = 148;
@@ -114,38 +119,46 @@ const pulseS = StyleSheet.create({
 });
 
 /* ═════ Map pills ═════ */
-function MapPills({ speedMph, gpsOk, isDark }) {
-  const bgColor = isDark ? 'rgba(12,18,35,0.78)' : 'rgba(255,255,255,0.88)';
-  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.7)';
+function MapPills({ speedMph, gpsOk, isDark, hosMinutes }) {
+  const bgColor = isDark ? 'rgba(12,18,35,0.86)' : 'rgba(255,255,255,0.92)';
+  const borderColor = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.7)';
   return (
-    <View style={pillS.wrap} pointerEvents="none">
+    <View style={pillS.wrap} pointerEvents="box-none">
+      {/* Big speed display — driver safety: visible at a glance from the wheel */}
       <View style={[pillS.speed, { backgroundColor: bgColor, borderColor }]}>
         <Text style={[pillS.speedNum, speedMph != null && pillS.speedNumLive, isDark && { color: '#f1f5f9' }]}>
           {speedMph ?? 0}
         </Text>
         <Text style={pillS.speedUnit}>mph</Text>
       </View>
-      <View style={[pillS.gps, { backgroundColor: bgColor, borderColor }]}>
-        <View style={[pillS.gpsDot, { backgroundColor: gpsOk ? '#059669' : '#d97706' }]} />
-        <Text style={[pillS.gpsText, { color: gpsOk ? '#059669' : '#d97706' }]}>
-          {gpsOk ? 'GPS LIVE' : 'GPS WEAK'}
-        </Text>
+      <View style={pillS.row}>
+        <View style={[pillS.gps, { backgroundColor: bgColor, borderColor }]}>
+          <View style={[pillS.gpsDot, { backgroundColor: gpsOk ? '#059669' : '#d97706' }]} />
+          <Text style={[pillS.gpsText, { color: gpsOk ? '#059669' : '#d97706' }]}>
+            {gpsOk ? 'GPS LIVE' : 'GPS WEAK'}
+          </Text>
+        </View>
+        <HOSCountdown initialMinutes={hosMinutes ?? 492} />
       </View>
     </View>
   );
 }
 const pillS = StyleSheet.create({
   wrap: { position: 'absolute', top: 12, left: 12, gap: 8, zIndex: 5 },
+  row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   speed: {
-    flexDirection: 'row', alignItems: 'baseline', gap: 4,
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 18, borderWidth: 1,
+    flexDirection: 'row', alignItems: 'baseline', gap: 6,
+    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, borderWidth: 1,
     alignSelf: 'flex-start',
     shadowColor: '#0f172a', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15, shadowRadius: 22, elevation: 6,
+    shadowOpacity: 0.18, shadowRadius: 22, elevation: 6,
   },
-  speedNum: { fontSize: 22, fontWeight: '800', letterSpacing: -0.8, color: '#0f172a' },
-  speedNumLive: { color: '#6366f1' },
-  speedUnit: { fontSize: 10.5, fontWeight: '700', letterSpacing: 0.6, color: '#6b7280', textTransform: 'uppercase' },
+  speedNum: {
+    fontSize: 36, fontWeight: '900', letterSpacing: -1.4, color: '#0f172a',
+    fontVariant: ['tabular-nums'], minWidth: 56, textAlign: 'right',
+  },
+  speedNumLive: { color: '#0193ab' },
+  speedUnit: { fontSize: 12, fontWeight: '800', letterSpacing: 0.8, color: '#6b7280', textTransform: 'uppercase' },
   gps: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, borderWidth: 1,
@@ -172,16 +185,14 @@ function DriverHeader({ userName, onAvatarTap, colors, isDark }) {
     }]}>
       <View style={hdrS.inner}>
         <View style={hdrS.left}>
-          <Text style={[hdrS.logo, { color: colors.textPrimary }]}>
-            dispatch<Text style={{ color: colors.accent }}>R</Text>
-          </Text>
+          <BrandLogo size={22} layout="horizontal" />
           <View style={[hdrS.roleBadge, { backgroundColor: colors.accentMuted }]}>
             <Text style={[hdrS.roleText, { color: colors.accent }]}>DRIVER</Text>
           </View>
         </View>
 
         <TouchableOpacity onPress={onAvatarTap} activeOpacity={0.85}>
-          <LinearGradient colors={['#6366f1', '#8b5cf6']} style={hdrS.avatarSolo}>
+          <LinearGradient colors={['#0193ab', '#04285a']} style={hdrS.avatarSolo}>
             <Text style={hdrS.avatarSoloText}>{initials}</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -199,7 +210,7 @@ const hdrS = StyleSheet.create({
   avatarSolo: {
     width: 36, height: 36, borderRadius: 999,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
   },
   avatarSoloText: { color: '#fff', fontSize: 13, fontWeight: '800' },
@@ -242,7 +253,7 @@ function HeaderMenu({ visible, onClose, isDark, colors, userName, userEmail, tru
             borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
           }]}>
             <View style={menuS.profile}>
-              <LinearGradient colors={['#6366f1', '#8b5cf6']} style={menuS.profileAvatar}>
+              <LinearGradient colors={['#0193ab', '#06b6d4']} style={menuS.profileAvatar}>
                 <Text style={menuS.profileAvatarText}>
                   {(userName || 'DR').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                 </Text>
@@ -260,14 +271,14 @@ function HeaderMenu({ visible, onClose, isDark, colors, userName, userEmail, tru
             <View style={[menuS.divider, { backgroundColor: colors.border }]} />
 
             <MenuRow
-              icon={isDark ? '☾' : '☀︎'}
+              icon={isDark ? 'moon' : 'sun'}
               label={isDark ? 'Dark theme' : 'Light theme'}
               meta={isDark ? 'On' : 'Off'}
               colors={colors}
               onPress={onToggleTheme}
             />
             <MenuRow
-              icon="🌐"
+              icon="globe"
               label="Language"
               meta="English"
               colors={colors}
@@ -277,7 +288,7 @@ function HeaderMenu({ visible, onClose, isDark, colors, userName, userEmail, tru
               }}
             />
             <MenuRow
-              icon="🚛"
+              icon="truck"
               label="Truck info"
               meta={truckInfo || '—'}
               colors={colors}
@@ -287,7 +298,7 @@ function HeaderMenu({ visible, onClose, isDark, colors, userName, userEmail, tru
               }}
             />
             <MenuRow
-              icon="⚙︎"
+              icon="settings"
               label="Settings"
               colors={colors}
               onPress={onOpenSettings}
@@ -296,7 +307,7 @@ function HeaderMenu({ visible, onClose, isDark, colors, userName, userEmail, tru
             <View style={[menuS.divider, { backgroundColor: colors.border }]} />
 
             <MenuRow
-              icon="⎋"
+              icon="logout"
               label="Sign out"
               danger
               colors={colors}
@@ -312,7 +323,9 @@ function HeaderMenu({ visible, onClose, isDark, colors, userName, userEmail, tru
 function MenuRow({ icon, label, meta, onPress, colors, danger }) {
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={menuS.row}>
-      <Text style={[menuS.rowIcon, danger && { color: '#ef4444' }]}>{icon}</Text>
+      <View style={menuS.rowIconWrap}>
+        <Icon name={icon} size={16} color={danger ? '#ef4444' : colors.textPrimary} />
+      </View>
       <Text style={[menuS.rowLabel, { color: danger ? '#ef4444' : colors.textPrimary }]}>{label}</Text>
       {meta ? <Text style={[menuS.rowMeta, { color: colors.textMuted }]} numberOfLines={1}>{meta}</Text> : null}
     </TouchableOpacity>
@@ -342,7 +355,7 @@ const menuS = StyleSheet.create({
   profileSub: { fontSize: 11.5, marginTop: 1 },
   divider: { height: 1, marginVertical: 4, opacity: 0.9 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 10 },
-  rowIcon: { width: 20, textAlign: 'center', fontSize: 15 },
+  rowIconWrap: { width: 22, alignItems: 'center', justifyContent: 'center' },
   rowLabel: { flex: 1, fontSize: 13.5, fontWeight: '600' },
   rowMeta: { fontSize: 12, fontWeight: '500', maxWidth: 120, textAlign: 'right' },
 });
@@ -377,7 +390,7 @@ function Toast({ toast, onDone, isDark }) {
   }, [toast?.id]);
 
   if (!toast) return null;
-  const color = toast.kind === 'error' ? '#ef4444' : toast.kind === 'info' ? '#6366f1' : '#10b981';
+  const color = toast.kind === 'error' ? '#ef4444' : toast.kind === 'info' ? '#0193ab' : '#10b981';
 
   return (
     <Animated.View
@@ -451,8 +464,8 @@ function MessageBanner({ message, isDark, onTap, onDone }) {
             backgroundColor: isDark ? 'rgba(18,22,38,0.78)' : 'rgba(255,255,255,0.86)',
             borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
           }]}>
-            <LinearGradient colors={['#6366f1', '#8b5cf6']} style={bnrS.icon}>
-              <Text style={bnrS.iconText}>💬</Text>
+            <LinearGradient colors={['#0193ab', '#06b6d4']} style={bnrS.icon}>
+              <Icon name="chat" size={16} color="#fff" />
             </LinearGradient>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[bnrS.title, { color: isDark ? '#f1f5f9' : '#0f172a' }]}>Dispatcher</Text>
@@ -460,7 +473,7 @@ function MessageBanner({ message, isDark, onTap, onDone }) {
                 {message.text}
               </Text>
             </View>
-            <Text style={[bnrS.chev, { color: isDark ? '#7b869e' : '#5a6478' }]}>›</Text>
+            <Icon name="chevron" size={16} color={isDark ? '#7b869e' : '#5a6478'} />
           </View>
         </BlurView>
       </TouchableOpacity>
@@ -479,6 +492,93 @@ const bnrS = StyleSheet.create({
   title: { fontSize: 13.5, fontWeight: '800', letterSpacing: -0.2 },
   sub: { fontSize: 12, fontWeight: '500', marginTop: 1 },
   chev: { fontSize: 22, fontWeight: '300', opacity: 0.7 },
+});
+
+/* ═════ Smart action card — context-aware primary action ═════ */
+function SmartActionCard({ load, progressPercent, remainingMiles, isDark, colors, insets, onCallBroker, onUploadPod }) {
+  // Pick the contextual action based on trip progress.
+  let phase, primary, secondary, headline, sub;
+  if (!load.pickupArrivedAt && progressPercent < 25) {
+    phase = 'pre-pickup';
+    headline = 'Heading to pickup';
+    sub = remainingMiles != null ? `${Math.max(0, remainingMiles)} mi to drop · call broker if any issue` : 'Call broker if any issue';
+    primary = { label: 'Call broker', icon: 'phone', onPress: onCallBroker, gradient: ['#22c55e', '#059669'] };
+  } else if (progressPercent >= 90) {
+    phase = 'near-delivery';
+    headline = 'Approaching delivery';
+    sub = 'Upload POD as soon as you finish';
+    primary = { label: 'Upload POD', icon: 'upload', onPress: onUploadPod, gradient: ['#0193ab', '#04285a'] };
+    secondary = { label: 'Call broker', icon: 'phone', onPress: onCallBroker };
+  } else {
+    phase = 'in-transit';
+    headline = 'In transit';
+    sub = remainingMiles != null ? `${Math.max(0, remainingMiles)} mi remaining` : 'Keep going';
+    primary = { label: 'Call broker', icon: 'phone', onPress: onCallBroker, gradient: ['#0193ab', '#04285a'] };
+  }
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={[smartS.wrap, { top: insets.top + 196 }]}
+    >
+      <BlurView
+        intensity={isDark ? 80 : 65}
+        tint={isDark ? 'dark' : 'light'}
+        style={smartS.blur}
+      >
+        <View style={[smartS.card, {
+          backgroundColor: isDark ? 'rgba(18,22,38,0.78)' : 'rgba(255,255,255,0.86)',
+          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+        }]}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[smartS.headline, { color: colors.textPrimary }]} numberOfLines={1}>
+              {headline}
+            </Text>
+            <Text style={[smartS.sub, { color: colors.textMuted }]} numberOfLines={1}>{sub}</Text>
+          </View>
+          {secondary ? (
+            <TouchableOpacity onPress={secondary.onPress} activeOpacity={0.85}>
+              <View style={[smartS.iconBtn, { backgroundColor: 'rgba(1,147,171,0.14)', borderColor: 'rgba(1,147,171,0.32)' }]}>
+                <Icon name={secondary.icon} size={16} color="#0193ab" />
+              </View>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity onPress={primary.onPress} activeOpacity={0.85}>
+            <LinearGradient
+              colors={primary.gradient}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={smartS.primaryBtn}
+            >
+              <Icon name={primary.icon} size={14} color="#fff" />
+              <Text style={smartS.primaryText}>{primary.label}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </BlurView>
+    </View>
+  );
+}
+const smartS = StyleSheet.create({
+  wrap: { position: 'absolute', left: 12, right: 12, zIndex: 18 },
+  blur: { borderRadius: 16, overflow: 'hidden' },
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 16, borderWidth: 1,
+  },
+  headline: { fontSize: 13.5, fontWeight: '800', letterSpacing: -0.2 },
+  sub: { fontSize: 11.5, fontWeight: '500', marginTop: 1 },
+  iconBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1,
+  },
+  primaryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999,
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
+  },
+  primaryText: { color: '#fff', fontSize: 12.5, fontWeight: '800', letterSpacing: 0.2 },
 });
 
 /* ═════ Arrived overlay ═════ */
@@ -613,7 +713,13 @@ export default function DriverPortal() {
     try {
       const d = await fetchActiveLoad(userId);
       setActiveLoad(normalizeLoad(d));
-    } catch {}
+    } catch (e) {
+      // 404 = "no active load assigned" — that's a valid state for a fresh driver,
+      // not an error. Only log for actual failures (5xx, network, etc.).
+      const msg = e?.message || '';
+      if (!/404/.test(msg)) log.warn('DriverPortal', 'fetchActiveLoad failed', e);
+      setActiveLoad(null);
+    }
   }, [userId]);
 
   const handleAccept = useCallback(async () => {
@@ -686,7 +792,7 @@ export default function DriverPortal() {
         }
         prevMsgCountRef.current = fromDispatcher.length;
         firstPollDoneRef.current = true;
-      } catch {}
+      } catch (e) { log.warn('DriverPortal', 'message poll failed', e); }
     };
     tick();
     const iv = setInterval(tick, 9000);
@@ -840,7 +946,7 @@ export default function DriverPortal() {
             animated: true,
           });
           hasFitRef.current = true;
-        } catch {}
+        } catch (e) { log.warn('DriverPortal', 'fitToCoordinates failed', e); }
       }, 400);
       return () => clearTimeout(t);
     }
@@ -859,7 +965,7 @@ export default function DriverPortal() {
             600,
           );
           hasFitRef.current = true;
-        } catch {}
+        } catch (e) { log.warn('DriverPortal', 'animateToRegion failed', e); }
       }, 400);
       return () => clearTimeout(t);
     }
@@ -1288,7 +1394,7 @@ export default function DriverPortal() {
               >
                 <View style={styles.destPin}>
                   <LinearGradient colors={['#ef4444', '#dc2626']} style={styles.destPinHead}>
-                    <Text style={styles.destPinFlag}>⚑</Text>
+                    <Icon name="pin" size={16} color="#fff" />
                   </LinearGradient>
                   <View style={styles.destPinTail} />
                 </View>
@@ -1355,8 +1461,8 @@ export default function DriverPortal() {
               ) : (
                 <View style={styles.driverPinWrap}>
                   <View style={styles.driverPinPulse} />
-                  <LinearGradient colors={['#6366f1', '#4f46e5']} style={styles.driverPin}>
-                    <Text style={styles.driverPinIcon}>🚛</Text>
+                  <LinearGradient colors={['#0193ab', '#04285a']} style={styles.driverPin}>
+                    <Icon name="truck" size={18} color="#fff" />
                   </LinearGradient>
                 </View>
               )}
@@ -1397,6 +1503,31 @@ export default function DriverPortal() {
         </View>
       )}
 
+      {/* ── Smart action card (broker call / POD upload, surfaced based on trip state) ── */}
+      {!navMode && activeLoad && (
+        <SmartActionCard
+          load={activeLoad}
+          progressPercent={progressPercent}
+          remainingMiles={remainingMiles}
+          isDark={isDark}
+          colors={colors}
+          insets={insets}
+          onCallBroker={() => {
+            const p = activeLoad.brokerPhone || activeLoad.shipperPhone || activeLoad.contactPhone;
+            if (p) {
+              Haptics.selectionAsync();
+              Linking.openURL(`tel:${p}`).catch(() => {});
+            } else {
+              showToast('No broker phone on file', 'info');
+            }
+          }}
+          onUploadPod={() => {
+            Haptics.selectionAsync();
+            setProofModalVisible(true);
+          }}
+        />
+      )}
+
       {/* ── Navigation HUD ── */}
       {navMode && navRoute && (
         <>
@@ -1422,10 +1553,10 @@ export default function DriverPortal() {
           <TouchableOpacity activeOpacity={0.82} onPress={recenterMap}>
             <BlurView intensity={isDark ? 72 : 58} tint={isDark ? 'dark' : 'light'} style={styles.recenterBlur}>
               <View style={[styles.recenterInner, {
-                backgroundColor: isDark ? 'rgba(99,102,241,0.22)' : 'rgba(255,255,255,0.7)',
-                borderColor: isDark ? 'rgba(99,102,241,0.45)' : 'rgba(99,102,241,0.25)',
+                backgroundColor: isDark ? 'rgba(1,147,171,0.22)' : 'rgba(255,255,255,0.7)',
+                borderColor: isDark ? 'rgba(1,147,171,0.45)' : 'rgba(1,147,171,0.25)',
               }]}>
-                <Text style={styles.recenterIcon}>⊕</Text>
+                <Icon name="navigation" size={20} color="#0193ab" />
               </View>
             </BlurView>
           </TouchableOpacity>
@@ -1440,7 +1571,7 @@ export default function DriverPortal() {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.navRecenterPill}
             >
-              <Text style={styles.navRecenterIcon}>⊙</Text>
+              <Icon name="navigation" size={15} color="#fff" />
               <Text style={styles.navRecenterText}>Recenter</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -1494,7 +1625,7 @@ export default function DriverPortal() {
             <View style={styles.collapsedLeft}>
               {activeLoad ? (
                 <>
-                  <LinearGradient colors={['#6366f1', '#8b5cf6']} style={styles.collapsedDot} />
+                  <LinearGradient colors={['#0193ab', '#06b6d4']} style={styles.collapsedDot} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.collapsedDest, { color: colors.textPrimary }]} numberOfLines={1}>
                       {activeLoad.destination}
@@ -1510,12 +1641,12 @@ export default function DriverPortal() {
                 <Text style={[styles.collapsedDest, { color: colors.textMuted }]}>No active load</Text>
               )}
             </View>
-            <Text style={[styles.collapsedChev, { color: colors.textMuted }]}>›</Text>
+            <Icon name="chevron" size={16} color={colors.textMuted} />
           </TouchableOpacity>
           {activeLoad && (
             <View style={[styles.collapsedBar, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)' }]}>
               <LinearGradient
-                colors={['#6366f1', '#8b5cf6']}
+                colors={['#0193ab', '#06b6d4']}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 style={[styles.collapsedBarFill, { width: `${progressPercent}%` }]}
               />
@@ -1552,7 +1683,7 @@ export default function DriverPortal() {
             }]}>
               {/* ── Hero: rate + status + equipment ── */}
               <LinearGradient
-                colors={isDark ? ['#1e1b4b', '#312e81', '#4c1d95'] : ['#6366f1', '#8b5cf6', '#a855f7']}
+                colors={isDark ? ['#04285a', '#04285a', '#0193ab'] : ['#0193ab', '#06b6d4', '#5dd0e3']}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                 style={styles.loadHero}
               >
@@ -1608,7 +1739,7 @@ export default function DriverPortal() {
                       ))}
                     </View>
                     <LinearGradient colors={['#ef4444', '#dc2626']} style={styles.timelinePinDest}>
-                      <Text style={styles.timelinePinFlag}>⚑</Text>
+                      <Icon name="pin" size={11} color="#fff" />
                     </LinearGradient>
                   </View>
                   <View style={styles.timelineStops}>
@@ -1634,23 +1765,23 @@ export default function DriverPortal() {
 
                 {/* Stat strip */}
                 <View style={[styles.statStrip, {
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(99,102,241,0.05)',
-                  borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.12)',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(1,147,171,0.05)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(1,147,171,0.12)',
                 }]}>
                   <View style={styles.statCell}>
-                    <Text style={[styles.statCellIcon, { color: '#6366f1' }]}>◷</Text>
+                    <Icon name="clock" size={14} color="#0193ab" />
                     <Text style={[styles.statCellValue, { color: colors.textPrimary }]}>{arrivalEtaText || '—'}</Text>
                     <Text style={[styles.statCellLabel, { color: colors.textMuted }]}>ETA</Text>
                   </View>
                   <View style={[styles.statCellDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]} />
                   <View style={styles.statCell}>
-                    <Text style={[styles.statCellIcon, { color: '#8b5cf6' }]}>⟶</Text>
+                    <Icon name="navigation" size={14} color="#06b6d4" />
                     <Text style={[styles.statCellValue, { color: colors.textPrimary }]}>{distanceText || '—'}</Text>
                     <Text style={[styles.statCellLabel, { color: colors.textMuted }]}>REMAINING</Text>
                   </View>
                   <View style={[styles.statCellDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]} />
                   <View style={styles.statCell}>
-                    <Text style={[styles.statCellIcon, { color: '#22c55e' }]}>⚡</Text>
+                    <Icon name="bolt" size={14} color="#22c55e" />
                     <Text style={[styles.statCellValue, { color: colors.textPrimary }]}>
                       {speedMph != null ? speedMph : '—'}
                       <Text style={[styles.statCellUnit, { color: colors.textMuted }]}> mph</Text>
@@ -1674,7 +1805,7 @@ export default function DriverPortal() {
                     </View>
                     <View style={[styles.progressTrack2, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
                       <LinearGradient
-                        colors={['#22c55e', '#6366f1', '#ec4899']}
+                        colors={['#22c55e', '#0193ab', '#ec4899']}
                         start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                         style={[styles.progressFill2, { width: `${progressPercent}%` }]}
                       />
@@ -1697,7 +1828,7 @@ export default function DriverPortal() {
                       start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                       style={styles.navStartBtn}
                     >
-                      <Text style={styles.navStartGlyph}>▶</Text>
+                      <Icon name="navigation" size={16} color="#fff" />
                       <Text style={styles.navStartText}>
                         {navIsRerouting
                           ? 'Loading route…'
@@ -1716,9 +1847,9 @@ export default function DriverPortal() {
                   <Text style={[styles.detailsToggleText, { color: colors.textMuted }]}>
                     {detailsExpanded ? 'Hide details' : 'Show load details'}
                   </Text>
-                  <Text style={[styles.detailsToggleChev, { color: colors.textMuted }]}>
-                    {detailsExpanded ? '▴' : '▾'}
-                  </Text>
+                  <View style={{ transform: [{ rotate: detailsExpanded ? '180deg' : '0deg' }] }}>
+                    <Icon name="chevronDown" size={12} color={colors.textMuted} />
+                  </View>
                 </TouchableOpacity>
 
                 {detailsExpanded && (
@@ -1745,13 +1876,16 @@ export default function DriverPortal() {
                           Linking.openURL(`tel:${p}`).catch(() => {});
                         }}
                         style={[styles.callBtn, {
-                          backgroundColor: 'rgba(99,102,241,0.12)',
-                          borderColor: 'rgba(99,102,241,0.35)',
+                          backgroundColor: 'rgba(1,147,171,0.12)',
+                          borderColor: 'rgba(1,147,171,0.35)',
                         }]}
                       >
-                        <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '700' }}>
-                          ☎ Call broker
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Icon name="phone" size={14} color={colors.accent} />
+                          <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '700' }}>
+                            Call broker
+                          </Text>
+                        </View>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1765,7 +1899,7 @@ export default function DriverPortal() {
             }]}>
               <View style={styles.loadEmpty}>
                 <View style={styles.loadEmptyBadge}>
-                  <Text style={{ fontSize: 26 }}>🚛</Text>
+                  <Icon name="truck" size={28} color="#0193ab" />
                 </View>
                 <Text style={[styles.loadEmptyTitle, { color: colors.textPrimary }]}>No active load</Text>
                 <Text style={[styles.loadEmptySub, { color: colors.textMuted }]}>
@@ -1790,7 +1924,7 @@ export default function DriverPortal() {
                 style={styles.launcherIconGrad}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               >
-                <Text style={{ fontSize: 18 }}>💬</Text>
+                <Icon name="chat" size={18} color="#fff" />
               </LinearGradient>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.launcherLabel, { color: colors.textPrimary }]}>Dispatcher</Text>
@@ -1803,7 +1937,7 @@ export default function DriverPortal() {
                   <Text style={styles.launcherBadgeText}>{unread}</Text>
                 </View>
               )}
-              <Text style={[styles.launcherChevron, { color: colors.textMuted }]}>›</Text>
+              <Icon name="chevron" size={16} color={colors.textMuted} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1819,18 +1953,26 @@ export default function DriverPortal() {
                 style={styles.launcherIconGrad}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               >
-                <Text style={{ fontSize: 16, color: '#fff' }}>✦</Text>
+                <Icon name="sparkles" size={18} color="#fff" />
               </LinearGradient>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.launcherLabel, { color: colors.textPrimary }]}>AI Assistant</Text>
                 <Text style={[styles.launcherSub, { color: colors.textMuted }]} numberOfLines={1}>
-                  Routes, traffic & load help
+                  {(() => {
+                    if (!gpsOk) return 'GPS weak — find a route?';
+                    if (!activeLoad) return 'Find your next load';
+                    if (remainingMiles != null && remainingMiles < 30) return `${remainingMiles} mi — find parking?`;
+                    if (progressPercent >= 90) return 'Near delivery — POD checklist?';
+                    if (progressPercent < 25) return 'Pre-pickup checklist?';
+                    return 'Traffic, weather, route help';
+                  })()}
                 </Text>
               </View>
               <View style={styles.aiBadge}>
+                <Icon name="sparkles" size={9} color="#0193ab" />
                 <Text style={styles.aiBadgeText}>AI</Text>
               </View>
-              <Text style={[styles.launcherChevron, { color: colors.textMuted }]}>›</Text>
+              <Icon name="chevron" size={16} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -1925,19 +2067,17 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
     shadowColor: '#ef4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6,
   },
-  destPinFlag: { color: '#fff', fontSize: 14, fontWeight: '800' },
   destPinTail: { width: 2, height: 8, backgroundColor: '#dc2626', marginTop: -1 },
   driverPinWrap: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
   driverPinPulse: {
     position: 'absolute', width: 52, height: 52, borderRadius: 99,
-    backgroundColor: 'rgba(99,102,241,0.25)',
+    backgroundColor: 'rgba(1,147,171,0.25)',
   },
   driverPin: {
     width: 40, height: 40, borderRadius: 99, justifyContent: 'center', alignItems: 'center',
     borderWidth: 2.5, borderColor: '#fff',
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8,
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8,
   },
-  driverPinIcon: { fontSize: 20 },
 
   // Nav-mode puck (Google Maps style: blue chevron in a halo).
   navPuckWrap: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
@@ -2025,7 +2165,6 @@ const styles = StyleSheet.create({
     width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#ef4444', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
   },
-  timelinePinFlag: { color: '#fff', fontSize: 10, fontWeight: '800' },
   timelineStops: { flex: 1, justifyContent: 'space-between', gap: 14, paddingVertical: 1 },
   timelineStop: { gap: 3, minWidth: 0 },
   timelineLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.9 },
@@ -2052,8 +2191,8 @@ const styles = StyleSheet.create({
   progressMarker: { position: 'absolute', top: -3, width: 0, alignItems: 'center' },
   progressMarkerDot: {
     width: 14, height: 14, borderRadius: 99, backgroundColor: '#fff',
-    borderWidth: 3, borderColor: '#6366f1',
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 6, elevation: 4,
+    borderWidth: 3, borderColor: '#0193ab',
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 6, elevation: 4,
   },
 
   navStartBtn: {
@@ -2083,7 +2222,7 @@ const styles = StyleSheet.create({
 
   loadEmpty: { alignItems: 'center', gap: 8, paddingVertical: 20 },
   loadEmptyBadge: {
-    width: 52, height: 52, borderRadius: 14, backgroundColor: 'rgba(99,102,241,0.12)',
+    width: 52, height: 52, borderRadius: 14, backgroundColor: 'rgba(1,147,171,0.12)',
     alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
   loadEmptyTitle: { fontSize: 15, fontWeight: '700' },
@@ -2099,17 +2238,18 @@ const styles = StyleSheet.create({
   },
   launcherIconGrad: {
     width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
   },
   launcherLabel: { fontSize: 14.5, fontWeight: '800', letterSpacing: -0.2 },
   launcherSub: { fontSize: 11.5, fontWeight: '500', marginTop: 2 },
   aiBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999,
-    backgroundColor: 'rgba(139,92,246,0.15)',
-    borderWidth: 1, borderColor: 'rgba(139,92,246,0.35)',
+    backgroundColor: 'rgba(1,147,171,0.14)',
+    borderWidth: 1, borderColor: 'rgba(1,147,171,0.34)',
   },
-  aiBadgeText: { color: '#8b5cf6', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.6 },
+  aiBadgeText: { color: '#0193ab', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.6 },
   launcherBadge: {
     minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: 10,
     backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center',
@@ -2123,10 +2263,10 @@ const styles = StyleSheet.create({
   recenterInner: {
     width: 46, height: 46, borderRadius: 15, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2, shadowRadius: 12, elevation: 6,
   },
-  recenterIcon: { fontSize: 22, color: '#6366f1' },
+  recenterIcon: { fontSize: 22, color: '#0193ab' },
   navRecenterWrap: { position: 'absolute', alignSelf: 'center', zIndex: 24 },
   navRecenterPill: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

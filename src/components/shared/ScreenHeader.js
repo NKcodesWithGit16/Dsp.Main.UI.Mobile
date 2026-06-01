@@ -19,7 +19,7 @@ export default function ScreenHeader({ title, subtitle, rightAction }) {
     : 'U';
 
   const fill = isDark ? glass.fillDarkStrong : glass.fillLightStrong;
-  const border = isDark ? glass.borderDark : 'rgba(99,102,241,0.18)';
+  const border = isDark ? glass.borderDark : 'rgba(1,147,171,0.18)';
   const blurIntensity = Platform.OS === 'ios'
     ? (isDark ? glass.blurIosDark : glass.blurIosLight)
     : (isDark ? glass.blurAndDark : glass.blurAndLight);
@@ -60,7 +60,7 @@ export default function ScreenHeader({ title, subtitle, rightAction }) {
           {rightAction}
           <TouchableOpacity
             onPress={toggleTheme}
-            style={[s.iconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(99,102,241,0.08)', borderColor: border }]}
+            style={[s.iconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(1,147,171,0.08)', borderColor: border }]}
             activeOpacity={0.7}
           >
             <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={15} color={colors.textMuted} />

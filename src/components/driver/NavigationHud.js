@@ -14,7 +14,7 @@ export function NavManeuverBanner({ step, distanceToManeuverMeters, isRerouting 
   return (
     <View style={[bannerS.wrap, { paddingTop: insets.top + 6 }]} pointerEvents="box-none">
       <LinearGradient
-        colors={isRerouting ? ['#f59e0b', '#ea580c'] : ['#4f46e5', '#7c3aed']}
+        colors={isRerouting ? ['#f59e0b', '#ea580c'] : ['#04285a', '#0193ab']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
         style={bannerS.card}
       >

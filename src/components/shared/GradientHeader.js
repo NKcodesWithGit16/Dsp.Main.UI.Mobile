@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { gradients, typography, spacing, radius } from '../../theme/colors';
+import Icon from './Icon';
 
 /**
  * GradientHeader — premium gradient banner used at the top of full-screen
@@ -47,7 +48,7 @@ export default function GradientHeader({
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             activeOpacity={0.7}
           >
-            <Text style={styles.backIcon}>‹</Text>
+            <Icon name="arrowLeft" size={18} color="#fff" />
           </TouchableOpacity>
         ))}
 

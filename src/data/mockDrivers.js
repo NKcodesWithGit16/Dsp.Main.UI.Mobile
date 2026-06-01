@@ -1,3 +1,13 @@
+/**
+ * DEV-ONLY fixtures. Do not import from production code paths.
+ * The real driver list comes from `src/api/main.js#fetchDrivers`. These exist
+ * for Storybook / Jest snapshot / local "no backend" demo modes only.
+ */
+if (!__DEV__) {
+  // eslint-disable-next-line no-console
+  console.warn('[hitchlink] mockDrivers imported in production build — this should never happen.');
+}
+
 export const MOCK_DRIVERS = [
   { id: 'd1', name: 'James Wilson',   initials: 'JW', truck: 'Freightliner Cascadia', status: 'moving',  lat: 41.8781, lng: -87.6298, origin: 'Chicago, IL',     dest: 'Atlanta, GA',     eta: '4h 20m', dist: '420 mi' },
   { id: 'd2', name: 'Maria Garcia',   initials: 'MG', truck: 'Kenworth T680',         status: 'idle',    lat: 33.7490, lng: -84.3880, origin: 'Atlanta, GA',     dest: 'Miami, FL',       eta: '6h 10m', dist: '665 mi' },

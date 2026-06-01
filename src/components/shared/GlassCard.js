@@ -1,18 +1,23 @@
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { glass, shadow, radius } from '../../theme/colors';
 
 /**
- * GlassCard — premium frosted-glass card surface.
+ * GlassCard — premium frosted-glass surface, matched 1:1 with web .home-card.
  *
- * variant: 'default' | 'strong' | 'floating'
- *   default  — subtle glass for inline content
- *   strong   — denser fill for primary cards
- *   floating — heavier shadow + opaque fill, for modals / sheets
+ *   variant: 'default' | 'strong' | 'floating'
+ *   accent : adds a soft teal glow + brand-tinted border
  *
- * accent: when true, adds a soft indigo glow.
+ * Composition (bottom → top):
+ *   1. Card shadow (tinted teal)
+ *   2. Clip viewport (rounded corners)
+ *   3. BlurView (backdrop blur — iOS strong, Android tinted)
+ *   4. Fill colour wash (rgba white/dark)
+ *   5. Top highlight line (inset 0 1px 0 rgba(255,255,255,0.95))
+ *   6. Border on top, content inside
  */
 export default function GlassCard({
   children,
@@ -22,6 +27,7 @@ export default function GlassCard({
   contentStyle,
   cornerRadius = radius.xl,
   borderless = false,
+  padded = true,
 }) {
   const { isDark } = useTheme();
 
@@ -57,9 +63,27 @@ export default function GlassCard({
           pointerEvents="none"
           style={[StyleSheet.absoluteFill, { backgroundColor: fill }]}
         />
+        {/* Inset top highlight — mimics the `inset 0 1px 0 rgba(255,255,255,0.95)`
+            shadow in the web theme so the card edge looks "etched". */}
+        {!isDark && (
+          <LinearGradient
+            colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0)']}
+            start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+            pointerEvents="none"
+            style={styles.topHighlight}
+          />
+        )}
+        {isDark && (
+          <LinearGradient
+            colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0)']}
+            start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+            pointerEvents="none"
+            style={styles.topHighlight}
+          />
+        )}
         <View
           style={[
-            styles.content,
+            padded ? styles.content : styles.contentBare,
             { borderRadius: cornerRadius, borderColor: border, borderWidth: borderless ? 0 : 1 },
             contentStyle,
           ]}
@@ -73,6 +97,12 @@ export default function GlassCard({
 
 const styles = StyleSheet.create({
   outer: { overflow: 'visible' },
-  clip: { overflow: 'hidden' },
-  content: { padding: 16 },
+  clip:  { overflow: 'hidden' },
+  content:     { padding: 16 },
+  contentBare: { padding: 0 },
+  topHighlight: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: 24,
+  },
 });

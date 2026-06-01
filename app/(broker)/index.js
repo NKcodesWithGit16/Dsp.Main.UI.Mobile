@@ -18,14 +18,19 @@ import {
 } from '../../src/theme/colors';
 import GlassCard from '../../src/components/shared/GlassCard';
 import GradientHeader from '../../src/components/shared/GradientHeader';
+import Icon from '../../src/components/shared/Icon';
+import LiveDot from '../../src/components/shared/LiveDot';
+import BrandLogo from '../../src/components/shared/BrandLogo';
+import BrandButton from '../../src/components/shared/BrandButton';
+import AnimatedPressable from '../../src/components/shared/AnimatedPressable';
 
 const EQUIPMENT_OPTIONS = ['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'RGN', 'Tanker', 'Power Only'];
 
 const STATUS_HEX = {
   available: '#10b981',
-  assigned:  '#6366f1',
-  delivered: '#38bdf8',
-  cancelled: '#f43f5e',
+  assigned:  '#0193ab',
+  delivered: '#06b6d4',
+  cancelled: '#ef4444',
 };
 
 /* ── helpers ──────────────────────────────────────────────── */
@@ -53,9 +58,9 @@ function KpiCard({ label, value, sub, color, icon }) {
           style={kpiS.iconWrap}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         >
-          <Text style={kpiS.icon}>{icon}</Text>
+          <Icon name={icon} size={18} color="#fff" />
         </LinearGradient>
-        <View style={kpiS.accentBar} />
+        <View style={[kpiS.accentBar, { backgroundColor: color }]} />
       </View>
       <Text style={[kpiS.value, { color: colors.textPrimary }]}>{value}</Text>
       <Text style={[kpiS.label, { color: colors.textMuted }]}>{label}</Text>
@@ -72,8 +77,7 @@ const kpiS = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18, shadowRadius: 10, elevation: 4,
   },
-  icon: { fontSize: 18 },
-  accentBar: { width: 18, height: 3, borderRadius: 2, opacity: 0.45, backgroundColor: '#6366f1' },
+  accentBar: { width: 22, height: 3, borderRadius: 2, opacity: 0.55 },
   value: { fontSize: typography.xl, fontWeight: '800', letterSpacing: -0.6 },
   label: { fontSize: typography.xs, fontWeight: '600', marginTop: 1 },
   sub: { fontSize: 11, marginTop: 3, fontWeight: '700' },
@@ -90,8 +94,8 @@ function LoadCard({ load, onDelete }) {
   const chips = [
     { val: '$' + (load.rate ?? 0).toLocaleString(), color: '#10b981' },
     { val: '$' + rpmVal + '/mi',                     color: '#f59e0b' },
-    { val: (load.miles ?? 0) + ' mi',                color: '#38bdf8' },
-    { val: load.equipment,                           color: '#818cf8' },
+    { val: (load.miles ?? 0) + ' mi',                color: '#06b6d4' },
+    { val: load.equipment,                           color: '#5dd0e3' },
   ];
 
   return (
@@ -110,7 +114,7 @@ function LoadCard({ load, onDelete }) {
           </View>
           <View style={[loadCardS.routeRail, { backgroundColor: colors.border }]} />
           <View style={loadCardS.routeRow}>
-            <View style={[loadCardS.routeDot, { backgroundColor: '#f43f5e' }]} />
+            <View style={[loadCardS.routeDot, { backgroundColor: '#ef4444' }]} />
             <Text style={[loadCardS.city, { color: colors.textPrimary }]} numberOfLines={1}>{load.destination}</Text>
           </View>
         </View>
@@ -124,7 +128,7 @@ function LoadCard({ load, onDelete }) {
             <Text style={[loadCardS.statusText, { color: statusColor }]}>{load.status}</Text>
           </View>
           {load.inquiryCount > 0 && (
-            <View style={[loadCardS.inquiryPill, { backgroundColor: 'rgba(99,102,241,0.18)', borderColor: 'rgba(99,102,241,0.4)' }]}>
+            <View style={[loadCardS.inquiryPill, { backgroundColor: 'rgba(1,147,171,0.18)', borderColor: 'rgba(1,147,171,0.4)' }]}>
               <Text style={[loadCardS.inquiryText, { color: colors.accent }]}>{load.inquiryCount} inquiries</Text>
             </View>
           )}
@@ -145,16 +149,22 @@ function LoadCard({ load, onDelete }) {
 
       {/* Footer */}
       <View style={loadCardS.foot}>
-        <Text style={[loadCardS.dateText, { color: colors.textMuted }]} numberOfLines={1}>
-          📅 {load.pickupDate} → {load.deliveryDate}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+          <Icon name="clock" size={11} color={colors.textMuted} />
+          <Text style={[loadCardS.dateText, { color: colors.textMuted }]} numberOfLines={1}>
+            {load.pickupDate} → {load.deliveryDate}
+          </Text>
+        </View>
         {load.status === 'available' && (
-          <TouchableOpacity
+          <AnimatedPressable
             onPress={() => onDelete(load.id)}
-            style={[loadCardS.delBtn, { backgroundColor: 'rgba(244,63,94,0.15)', borderColor: 'rgba(244,63,94,0.4)' }]}
+            hapticStyle="warning"
+            pressedScale={0.94}
           >
-            <Text style={loadCardS.delText}>Remove</Text>
-          </TouchableOpacity>
+            <View style={[loadCardS.delBtn, { backgroundColor: 'rgba(239,68,68,0.14)', borderColor: 'rgba(239,68,68,0.42)' }]}>
+              <Text style={loadCardS.delText}>Remove</Text>
+            </View>
+          </AnimatedPressable>
         )}
       </View>
     </GlassCard>
@@ -182,7 +192,7 @@ const loadCardS = StyleSheet.create({
   foot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing[2] },
   dateText: { fontSize: 11, fontWeight: '500', flex: 1 },
   delBtn: { paddingHorizontal: spacing[3], paddingVertical: 6, borderRadius: radius.sm, borderWidth: 1 },
-  delText: { color: '#f43f5e', fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+  delText: { color: '#dc2626', fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
 });
 
 /* ════════════════════════════════════════════════════════════
@@ -205,12 +215,12 @@ function DashboardTab({ loads, inquiries, refreshing, onRefresh }) {
     >
       {/* KPIs */}
       <View style={{ flexDirection: 'row', marginBottom: spacing[2] }}>
-        <KpiCard label="Total Loads" value={loads.length} icon="📦" color="#6366f1" />
-        <KpiCard label="Total Value" value={'$' + (totalValue / 1000).toFixed(1) + 'k'} sub="portfolio" icon="💰" color="#10b981" />
+        <KpiCard label="Total loads" value={loads.length} icon="box" color="#0193ab" />
+        <KpiCard label="Total value" value={'$' + (totalValue / 1000).toFixed(1) + 'k'} sub="portfolio" icon="dollar" color="#10b981" />
       </View>
       <View style={{ flexDirection: 'row', marginBottom: spacing[4] }}>
-        <KpiCard label="Avg RPM" value={'$' + avgRpm} sub="per mile" icon="📈" color="#f59e0b" />
-        <KpiCard label="Inquiries" value={inquiries.length} sub="active" icon="💬" color="#38bdf8" />
+        <KpiCard label="Avg RPM" value={'$' + avgRpm} sub="per mile" icon="trendUp" color="#f59e0b" />
+        <KpiCard label="Inquiries" value={inquiries.length} sub="active" icon="chat" color="#06b6d4" />
       </View>
 
       {/* Status breakdown */}
@@ -231,7 +241,7 @@ function DashboardTab({ loads, inquiries, refreshing, onRefresh }) {
                 </View>
                 <Text style={[dashS.statusCount, { color: colors.textPrimary }]}>{count}</Text>
               </View>
-              <View style={[dashS.barTrack, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(99,102,241,0.1)' }]}>
+              <View style={[dashS.barTrack, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(1,147,171,0.1)' }]}>
                 <LinearGradient
                   colors={[color + 'ff', color + 'aa']}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -369,7 +379,7 @@ function PostLoadTab({ brokerId, onLoadPosted }) {
         keyboardType={opts.keyboardType ?? 'default'}
         style={[postS.input, {
           backgroundColor: inputBg,
-          borderColor: errors[field] ? '#f43f5e' : colors.border,
+          borderColor: errors[field] ? '#ef4444' : colors.border,
           color: colors.textPrimary,
         }]}
       />
@@ -384,11 +394,11 @@ function PostLoadTab({ brokerId, onLoadPosted }) {
           <View style={postS.titleRow}>
             <View style={postS.titleIcon}>
               <LinearGradient colors={gradients.brand} style={postS.titleIconGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                <Text style={{ fontSize: 18 }}>📋</Text>
+                <Icon name="fileText" size={20} color="#fff" />
               </LinearGradient>
             </View>
             <View>
-              <Text style={[postS.title, { color: colors.textPrimary }]}>Post a New Load</Text>
+              <Text style={[postS.title, { color: colors.textPrimary }]}>Post a new load</Text>
               <Text style={[postS.titleSub, { color: colors.textMuted }]}>Fill out the details to publish to the loadboard</Text>
             </View>
           </View>
@@ -401,7 +411,7 @@ function PostLoadTab({ brokerId, onLoadPosted }) {
           </View>
 
           {/* Destination */}
-          <Text style={[postS.section, { color: '#f43f5e' }]}>● Destination</Text>
+          <Text style={[postS.section, { color: '#ef4444' }]}>● Destination</Text>
           <View style={{ flexDirection: 'row', marginHorizontal: -spacing[1] }}>
             {renderField('City',  'destCity',  { half: true })}
             {renderField('State', 'destState', { half: true, placeholder: 'TX' })}
@@ -414,7 +424,7 @@ function PostLoadTab({ brokerId, onLoadPosted }) {
             style={[postS.input, postS.select, { backgroundColor: inputBg, borderColor: colors.border }]}
           >
             <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: '600' }}>{form.equipment}</Text>
-            <Text style={{ color: colors.textMuted, fontSize: 14 }}>▾</Text>
+            <Icon name="chevronDown" size={14} color={colors.textMuted} />
           </TouchableOpacity>
 
           {renderField('Commodity', 'commodity', { placeholder: 'e.g. Electronics' })}
@@ -426,7 +436,7 @@ function PostLoadTab({ brokerId, onLoadPosted }) {
 
           {rpmVal && (
             <View style={[postS.rpmBanner, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.4)' }]}>
-              <Text style={postS.rpmIcon}>📊</Text>
+              <Icon name="chart" size={16} color="#d97706" />
               <Text style={postS.rpmVal}>${rpmVal}/mi</Text>
               <Text style={[postS.rpmLbl, { color: colors.textMuted }]}>rate per mile</Text>
             </View>
@@ -450,21 +460,16 @@ function PostLoadTab({ brokerId, onLoadPosted }) {
             style={[postS.input, postS.textarea, { backgroundColor: inputBg, borderColor: colors.border, color: colors.textPrimary }]}
           />
 
-          <TouchableOpacity onPress={handleSubmit} disabled={posting} activeOpacity={0.85} style={postS.submitWrap}>
-            <LinearGradient
-              colors={gradients.brand}
-              style={postS.submit}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            >
-              {posting
-                ? <ActivityIndicator color="#fff" />
-                : <>
-                    <Text style={postS.submitIcon}>✓</Text>
-                    <Text style={postS.submitText}>Post Load</Text>
-                  </>
-              }
-            </LinearGradient>
-          </TouchableOpacity>
+          <View style={{ marginTop: spacing[2] }}>
+            <BrandButton
+              label="Post load"
+              icon="checkmark"
+              size="lg"
+              full
+              loading={posting}
+              onPress={handleSubmit}
+            />
+          </View>
         </GlassCard>
       </ScrollView>
 
@@ -517,7 +522,7 @@ const postS = StyleSheet.create({
   },
   select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[3] },
   textarea: { minHeight: 80, textAlignVertical: 'top', marginBottom: spacing[4] },
-  fieldErr: { color: '#f43f5e', fontSize: 11, marginTop: 3, fontWeight: '600' },
+  fieldErr: { color: '#ef4444', fontSize: 11, marginTop: 3, fontWeight: '600' },
   rpmBanner: {
     flexDirection: 'row', alignItems: 'center', gap: spacing[2],
     paddingHorizontal: spacing[3], paddingVertical: spacing[3],
@@ -606,7 +611,7 @@ function MyLoadsTab({ loads, refreshing, onRefresh, onDelete }) {
 const myLoadsS = StyleSheet.create({
   filterActive: {
     paddingHorizontal: spacing[4], paddingVertical: 8,
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 10, elevation: 4,
   },
   filterActiveText: { color: '#fff', fontWeight: '800', fontSize: 12.5, textTransform: 'capitalize', letterSpacing: 0.3 },
@@ -672,10 +677,10 @@ function InquiriesTab({ inquiries, brokerId }) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing[6] }}>
         <LinearGradient
-          colors={['rgba(99,102,241,0.22)', 'rgba(139,92,246,0.18)']}
+          colors={['rgba(1,147,171,0.28)', 'rgba(6,182,212,0.20)']}
           style={inqS.emptyAvatar}
         >
-          <Text style={{ fontSize: 32 }}>💬</Text>
+          <Icon name="chat" size={34} color="#0193ab" />
         </LinearGradient>
         <Text style={[inqS.emptyTitle, { color: colors.textPrimary }]}>No inquiries yet</Text>
         <Text style={[inqS.emptyHint, { color: colors.textMuted }]}>
@@ -700,7 +705,7 @@ function InquiriesTab({ inquiries, brokerId }) {
           }
           rightSlot={
             <View style={inqS.threadStatus}>
-              <View style={inqS.threadDot} />
+              <LiveDot color="#10b981" size={6} />
               <Text style={inqS.threadStatusText}>Live</Text>
             </View>
           }
@@ -762,17 +767,23 @@ function InquiriesTab({ inquiries, brokerId }) {
               onSubmitEditing={handleSend}
               returnKeyType="send"
             />
-            <TouchableOpacity
+            <AnimatedPressable
               onPress={handleSend}
               disabled={sending || !text.trim()}
-              style={[inqS.sendWrap, { opacity: text.trim() && !sending ? 1 : 0.4 }]}
+              hapticStyle="light"
+              pressedScale={0.9}
+              containerStyle={{ opacity: text.trim() && !sending ? 1 : 0.4 }}
             >
-              <LinearGradient colors={gradients.brand} style={inqS.send} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+              <LinearGradient
+                colors={gradients.brand}
+                style={[inqS.send, shadow.glow]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              >
                 {sending
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={inqS.sendIcon}>↑</Text>}
+                  : <Icon name="send" size={17} color="#fff" />}
               </LinearGradient>
-            </TouchableOpacity>
+            </AnimatedPressable>
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -816,7 +827,7 @@ const inqS = StyleSheet.create({
   emptyAvatar: {
     width: 84, height: 84, borderRadius: 99,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing[3],
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 8 },
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3, shadowRadius: 16, elevation: 6,
   },
   emptyTitle: { fontSize: 17, fontWeight: '800', letterSpacing: -0.3, marginBottom: 6 },
@@ -853,7 +864,7 @@ const inqS = StyleSheet.create({
   send: {
     width: 44, height: 44, borderRadius: 99,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 3 },
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4, shadowRadius: 10, elevation: 5,
   },
   sendIcon: { color: '#fff', fontSize: 22, fontWeight: '800', marginTop: -2 },
@@ -862,7 +873,7 @@ const inqS = StyleSheet.create({
   listAvatar: {
     width: 46, height: 46, borderRadius: 99,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 4,
   },
   listAvatarText: { color: '#fff', fontWeight: '800', fontSize: 18 },
@@ -871,10 +882,10 @@ const inqS = StyleSheet.create({
   listLoadId: { fontSize: 11, marginTop: 3, fontWeight: '700' },
   listTime: { fontSize: 11, fontWeight: '500' },
   unread: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#0193ab',
     borderRadius: 999, minWidth: 22, height: 22,
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4, shadowRadius: 6, elevation: 3,
   },
   unreadText: { color: '#fff', fontSize: 11, fontWeight: '800' },
@@ -884,10 +895,10 @@ const inqS = StyleSheet.create({
    MAIN PORTAL
    ════════════════════════════════════════════════════════════ */
 const TABS = [
-  { label: 'Dashboard', icon: '📊' },
-  { label: 'Post Load', icon: '📋' },
-  { label: 'My Loads',  icon: '📦' },
-  { label: 'Inquiries', icon: '💬' },
+  { label: 'Dashboard', icon: 'chart' },
+  { label: 'Post load', icon: 'fileText' },
+  { label: 'My loads',  icon: 'box' },
+  { label: 'Inquiries', icon: 'chat' },
 ];
 
 export default function BrokerPortal() {
@@ -929,7 +940,8 @@ export default function BrokerPortal() {
     Alert.alert('Remove Load', 'Remove this load from the board?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: async () => {
-          try { await deleteLoad(loadId); } catch {}
+          try { await deleteLoad(loadId); }
+          catch (e) { if (__DEV__) console.warn('[Broker] deleteLoad failed', e); }
           setLoads(l => l.filter(x => x.id !== loadId));
       } },
     ]);
@@ -960,23 +972,26 @@ export default function BrokerPortal() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.pageBg }} edges={['left', 'right']}>
       {/* Hero header */}
       <LinearGradient
-        colors={gradients.heroPrimary}
+        colors={gradients.brand}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[rootS.hero, { paddingTop: insets.top + spacing[3] }]}
       >
         <View style={rootS.heroRow}>
           <View style={rootS.heroLeft}>
             <View style={rootS.brandBadge}>
-              <Text style={rootS.brandBadgeText}>BR</Text>
+              <Icon name="briefcase" size={20} color="#fff" />
             </View>
             <View style={{ minWidth: 0, flex: 1 }}>
               <Text style={rootS.heroEyebrow}>Broker Portal</Text>
               <Text style={rootS.heroName} numberOfLines={1}>{userName ?? 'Broker'}</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={handleLogout} style={rootS.signOut} activeOpacity={0.85}>
-            <Text style={rootS.signOutText}>Sign out</Text>
-          </TouchableOpacity>
+          <AnimatedPressable onPress={handleLogout} hapticStyle="light" pressedScale={0.94}>
+            <View style={rootS.signOut}>
+              <Icon name="logout" size={13} color="#fff" />
+              <Text style={rootS.signOutText}>Sign out</Text>
+            </View>
+          </AnimatedPressable>
         </View>
       </LinearGradient>
 
@@ -1003,7 +1018,11 @@ export default function BrokerPortal() {
                     style={StyleSheet.absoluteFill}
                   />
                 )}
-                <Text style={[rootS.tabIcon, { opacity: active ? 1 : 0.55 }]}>{icon}</Text>
+                <Icon
+                  name={icon}
+                  size={14}
+                  color={active ? '#fff' : colors.textMuted}
+                />
                 <Text style={[rootS.tabLabel, {
                   color: active ? '#fff' : colors.textMuted,
                   fontWeight: active ? '800' : '600',
@@ -1048,6 +1067,7 @@ const rootS = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
   brandBadgeText: { color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 1.2 },
+  signOutBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   heroEyebrow: {
     color: 'rgba(255,255,255,0.78)',
     fontSize: typography.xs, fontWeight: '700',
@@ -1055,6 +1075,7 @@ const rootS = StyleSheet.create({
   },
   heroName: { color: '#fff', fontSize: typography.lg, fontWeight: '800', letterSpacing: -0.4, marginTop: 2 },
   signOut: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: spacing[3], paddingVertical: spacing[2],
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.18)',
@@ -1079,14 +1100,14 @@ const rootS = StyleSheet.create({
     overflow: 'hidden',
   },
   tabContentActive: {
-    shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#0193ab', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 10, elevation: 4,
   },
   tabIcon: { fontSize: 13 },
   tabLabel: { fontSize: 12, letterSpacing: 0.2 },
   tabBadge: {
     minWidth: 16, height: 16, paddingHorizontal: 4, borderRadius: 999,
-    backgroundColor: '#f43f5e',
+    backgroundColor: '#ef4444',
     alignItems: 'center', justifyContent: 'center',
   },
   tabBadgeText: { color: '#fff', fontSize: 9.5, fontWeight: '800' },

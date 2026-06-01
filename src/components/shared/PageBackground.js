@@ -9,6 +9,16 @@ const GRID_SIZE = 52;
 const GRID_COLS = Math.ceil(W / GRID_SIZE) + 1;
 const GRID_ROWS = 10;
 
+/**
+ * Animated brand-aligned page background.
+ *
+ *   • Soft gradient page wash (lavender in light / near-black in dark)
+ *   • Teal / cyan / navy "glow orbs" that drift over 18–26s loops
+ *   • Subtle teal grid overlay masked to the top half of the viewport
+ *
+ * Mirrors the .home-bg + .home-orb + .home-grid structure used on the web
+ * dashboard so both apps feel identical.
+ */
 function GridOverlay({ isDark }) {
   const lines = [];
   for (let i = 0; i <= GRID_COLS; i++) {
@@ -20,7 +30,7 @@ function GridOverlay({ isDark }) {
           left: i * GRID_SIZE,
           top: 0, bottom: 0,
           width: StyleSheet.hairlineWidth,
-          backgroundColor: 'rgba(99,102,241,0.14)',
+          backgroundColor: 'rgba(1,147,171,0.14)',
         }}
       />
     );
@@ -34,7 +44,7 @@ function GridOverlay({ isDark }) {
           top: i * GRID_SIZE,
           left: 0, right: 0,
           height: StyleSheet.hairlineWidth,
-          backgroundColor: 'rgba(99,102,241,0.14)',
+          backgroundColor: 'rgba(1,147,171,0.14)',
         }}
       />
     );
@@ -45,7 +55,7 @@ function GridOverlay({ isDark }) {
         position: 'absolute',
         top: 0, left: 0, right: 0,
         height: H * 0.55,
-        opacity: isDark ? 0.45 : 0.85,
+        opacity: isDark ? 0.35 : 0.65,
       }}
     >
       {lines}
@@ -103,24 +113,28 @@ export default function PageBackground({ children }) {
     transform: [
       { translateX: anim1.interpolate({ inputRange: [0, 1], outputRange: [0, 30] }) },
       { translateY: anim1.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }) },
+      { scale:      anim1.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) },
     ],
   };
   const orb2Transform = {
     transform: [
       { translateX: anim2.interpolate({ inputRange: [0, 1], outputRange: [0, -30] }) },
       { translateY: anim2.interpolate({ inputRange: [0, 1], outputRange: [0, -20] }) },
+      { scale:      anim2.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) },
     ],
   };
   const orb3Transform = {
     transform: [
       { translateX: anim3.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }) },
       { translateY: anim3.interpolate({ inputRange: [0, 1], outputRange: [0, 15] }) },
+      { scale:      anim3.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) },
     ],
   };
 
-  const indigo = isDark ? 'rgba(99,102,241,0.35)'  : 'rgba(99,102,241,0.52)';
-  const cyan   = isDark ? 'rgba(6,182,212,0.28)'   : 'rgba(6,182,212,0.42)';
-  const violet = isDark ? 'rgba(139,92,246,0.20)'  : 'rgba(139,92,246,0.32)';
+  // Brand-aligned orb colours: teal, cyan, navy.
+  const teal = isDark ? 'rgba(31,182,206,0.35)'  : 'rgba(1,147,171,0.52)';
+  const cyan = isDark ? 'rgba(6,182,212,0.28)'   : 'rgba(6,182,212,0.42)';
+  const navy = isDark ? 'rgba(10,58,120,0.30)'   : 'rgba(4,40,90,0.32)';
 
   return (
     <LinearGradient
@@ -132,10 +146,10 @@ export default function PageBackground({ children }) {
       <View style={styles.bg} pointerEvents="none">
         <GridOverlay isDark={isDark} />
 
-        {/* Orb 1 — indigo, top-left */}
+        {/* Orb 1 — teal, top-left */}
         <Animated.View style={[styles.orb, styles.orb1, orb1Transform]}>
           <LinearGradient
-            colors={[indigo, 'transparent']}
+            colors={[teal, 'transparent']}
             style={StyleSheet.absoluteFill}
             start={{ x: 0.5, y: 0.5 }}
             end={{ x: 1, y: 1 }}
@@ -152,10 +166,10 @@ export default function PageBackground({ children }) {
           />
         </Animated.View>
 
-        {/* Orb 3 — violet, center */}
+        {/* Orb 3 — navy, center */}
         <Animated.View style={[styles.orb, styles.orb3, orb3Transform]}>
           <LinearGradient
-            colors={[violet, 'transparent']}
+            colors={[navy, 'transparent']}
             style={StyleSheet.absoluteFill}
             start={{ x: 0.5, y: 0.5 }}
             end={{ x: 0.5, y: 1 }}
@@ -172,7 +186,7 @@ const styles = StyleSheet.create({
   gradient: { flex: 1 },
   bg: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
   orb: { position: 'absolute', borderRadius: 9999, overflow: 'hidden' },
-  orb1: { top: -180, left: -140, width: 520, height: 520 },
-  orb2: { bottom: -140, right: -140, width: 490, height: 490 },
-  orb3: { top: H * 0.38, left: W * 0.32, width: 360, height: 360 },
+  orb1: { top: -180, left: -140, width: 540, height: 540 },
+  orb2: { bottom: -140, right: -140, width: 500, height: 500 },
+  orb3: { top: H * 0.38, left: W * 0.32, width: 380, height: 380 },
 });
