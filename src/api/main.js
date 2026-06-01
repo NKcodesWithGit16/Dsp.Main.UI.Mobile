@@ -79,14 +79,23 @@ export async function fetchActiveLoad(driverId) {
 }
 
 export async function fetchDriverMessages(driverId) {
-  const data = await apiFetch(`/chat/${driverId}`);
+  // `as_=driver&actorId=driverId` lets the backend filter out messages this
+  // driver previously hid via "Delete for me" — without it, hidden messages
+  // would re-appear on every poll.
+  const params = new URLSearchParams({ as_: 'driver', actorId: String(driverId) });
+  const data = await apiFetch(`/chat/${driverId}?${params}`);
   return data ?? [];
 }
 
-export async function sendDriverMessage(driverId, message) {
+export async function sendDriverMessage(driverId, message, replyToMessageId) {
   return apiFetch(`/chat/${driverId}`, {
     method: 'POST',
-    body: JSON.stringify({ message, senderId: driverId, senderRole: 'driver' }),
+    body: JSON.stringify({
+      message,
+      senderId: driverId,
+      senderRole: 'driver',
+      replyToMessageId: replyToMessageId || null,
+    }),
   });
 }
 
@@ -184,6 +193,74 @@ export async function uploadDeliveryPhoto(imageUri) {
   });
   if (!res.ok) throw new Error(`Upload failed ${res.status}`);
   return res.json();
+}
+
+// Upload a recorded voice clip + waveform metadata to the chat thread.
+// `audioUri` is the local file URI from expo-audio. Peaks are 0-100 ints.
+export async function sendDriverVoiceMessage(driverId, { audioUri, mimeType, durationSeconds, peaks, fromDriver = true, replyToMessageId }) {
+  const token = await getToken();
+  const ext = mimeType?.includes('mp4') || mimeType?.includes('m4a') ? 'm4a'
+    : mimeType?.includes('ogg') ? 'ogg'
+    : mimeType?.includes('webm') ? 'webm'
+    : 'aac';
+  const form = new FormData();
+  form.append('audio', {
+    uri: audioUri,
+    name: `voice-${Date.now()}.${ext}`,
+    type: mimeType || 'audio/mp4',
+  });
+  form.append('fromDriver', String(!!fromDriver));
+  if (durationSeconds != null) form.append('durationSeconds', String(Math.round(durationSeconds)));
+  if (peaks?.length) form.append('waveformPeaks', peaks.join(','));
+  if (replyToMessageId) form.append('replyToMessageId', String(replyToMessageId));
+
+  const res = await securedFetch(`${BASE}/chat/${driverId}/voice`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  if (!res.ok) throw new Error(`Voice upload failed ${res.status}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// Compose a full audio URL for a backend-relative path like "/chat/messages/{id}/audio".
+export function audioFullUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${BASE}${path}`;
+}
+
+// ─── Message interactions ────────────────────────────────────────────────────
+// The backend accepts actor identity in the request body — mirrors the
+// dispatcher-web flow and keeps these endpoints role-agnostic.
+
+export async function editChatMessage(messageId, text, actor) {
+  return apiFetch(`/chat/messages/${messageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ text, actorRole: actor?.role || 'driver', actorId: actor?.id }),
+  });
+}
+
+export async function deleteChatMessage(messageId, scope, actor) {
+  return apiFetch(`/chat/messages/${messageId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ scope, actorRole: actor?.role || 'driver', actorId: actor?.id }),
+  });
+}
+
+export async function reactToChatMessage(messageId, emoji, actor) {
+  return apiFetch(`/chat/messages/${messageId}/reactions`, {
+    method: 'POST',
+    body: JSON.stringify({ emoji, actorRole: actor?.role || 'driver', actorId: actor?.id }),
+  });
+}
+
+export async function removeChatReaction(messageId, actor) {
+  return apiFetch(`/chat/messages/${messageId}/reactions`, {
+    method: 'DELETE',
+    body: JSON.stringify({ actorRole: actor?.role || 'driver', actorId: actor?.id }),
+  });
 }
 
 export async function confirmDelivery(loadId, driverId, userId, photoUrl, fileName, notes) {

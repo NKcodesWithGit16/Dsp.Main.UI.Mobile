@@ -13,7 +13,7 @@ export default {
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
-      backgroundColor: "#08090e",
+      backgroundColor: "#ffffff",
     },
     ios: {
       supportsTablet: true,
@@ -30,13 +30,15 @@ export default {
           "HitchLink uses your camera to capture proof of delivery photos.",
         NSPhotoLibraryUsageDescription:
           "HitchLink accesses your photo library to attach delivery proof images.",
-        UIBackgroundModes: ["remote-notification"],
+        NSMicrophoneUsageDescription:
+          "HitchLink uses your microphone to record voice messages for your dispatcher.",
+        UIBackgroundModes: ["remote-notification", "audio"],
       },
     },
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#08090e",
+        backgroundColor: "#ffffff",
       },
       package: "com.HitchLink.app",
       config: {
@@ -49,6 +51,7 @@ export default {
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
         "READ_MEDIA_IMAGES",
+        "RECORD_AUDIO",
       ],
     },
     web: {
@@ -80,12 +83,19 @@ export default {
         "expo-notifications",
         {
           icon: "./assets/icon.png",
-          color: "#6366f1",
+          color: "#0193ab",
           androidMode: "default",
           androidCollapsedTitle: "HitchLink",
         },
       ],
       "expo-image-picker",
+      [
+        "expo-audio",
+        {
+          microphonePermission:
+            "HitchLink uses your microphone to record voice messages for your dispatcher.",
+        },
+      ],
     ],
   },
 };
