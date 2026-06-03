@@ -72,6 +72,14 @@ const ICONS = {
       <Path d="M12 2s4 4.5 4 8.5a4 4 0 0 1-4.6 4 4 4 0 0 0 1.6-3.5c0-1.6-1-2.5-1-2.5s-3 2-3 5.5A4 4 0 0 0 12 18a6 6 0 0 0 6-6c0-5-6-10-6-10z" />
     </FilledSvg>
   ),
+  smile: (p) => (
+    <IconSvg {...p}>
+      <Circle cx="12" cy="12" r="10" {...SP({ stroke: 1.9 })} />
+      <Path {...SP({ stroke: 1.9 })} d="M8 14s1.5 2 4 2 4-2 4-2" />
+      <Line x1="9"  y1="9" x2="9.01"  y2="9" {...SP({ stroke: 2.2 })} />
+      <Line x1="15" y1="9" x2="15.01" y2="9" {...SP({ stroke: 2.2 })} />
+    </IconSvg>
+  ),
   alertTriangle: (p) => (
     <IconSvg {...p}>
       <Path {...SP({ stroke: 1.9 })} d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -393,6 +401,29 @@ const ICONS = {
     <IconSvg {...p}>
       <Path {...SP({ stroke: 1.7 })} fill={p.color} d="M3 12 12 3l9 9z" />
       <Path {...SP({ stroke: 1.7 })} fill={p.color} d="M5 10h14v11H5z" />
+    </IconSvg>
+  ),
+  // Push-pin / thumbtack — used for "pin message"
+  thumbtack: (p) => (
+    <IconSvg {...p}>
+      <Path {...SP({ stroke: 1.8 })} d="M9 4h6l1 6-3 2v8l-1 1-1-1v-8L8 10z" />
+      <Path {...SP({ stroke: 1.8 })} d="M9 10h6" />
+      <Path {...SP({ stroke: 1.8 })} d="M12 4V2" />
+    </IconSvg>
+  ),
+  // Generic image / photo — used for shared media tab
+  image: (p) => (
+    <IconSvg {...p}>
+      <Rect x="3" y="3" width="18" height="18" rx="2" {...SP({ stroke: 1.7 })} />
+      <Circle cx="8.5" cy="8.5" r="1.5" {...SP({ stroke: 1.7 })} />
+      <Path {...SP({ stroke: 1.7 })} d="M21 15l-5-5L5 21" />
+    </IconSvg>
+  ),
+  // @-at sign — used for mention indicator
+  at: (p) => (
+    <IconSvg {...p}>
+      <Circle cx="12" cy="12" r="4" {...SP({ stroke: 1.8 })} />
+      <Path {...SP({ stroke: 1.8 })} d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.4 7" />
     </IconSvg>
   ),
 };

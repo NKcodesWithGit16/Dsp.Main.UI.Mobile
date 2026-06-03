@@ -99,6 +99,43 @@ export async function sendDriverMessage(driverId, message, replyToMessageId) {
   });
 }
 
+// ─── Attachments (Phase 1 foundation) ──────────────────────────────────────
+// Same direct-to-R2 flow as the web app: sign → PUT → POST /message with refs.
+
+export async function signChatAttachment(driverId, { kind, mimeType, sizeBytes }) {
+  return apiFetch(`/chat/${driverId}/attachments/sign`, {
+    method: 'POST',
+    body: JSON.stringify({ kind, mimeType, sizeBytes }),
+  });
+}
+
+// On RN, `fetch(uri)` returns a Blob from a local file URI thanks to RN's
+// network stack. We re-emit it as the PUT body so the signed URL receives the
+// raw bytes — R2 doesn't accept multipart/form-data.
+export async function uploadChatAttachment(uploadUrl, fileUri, mimeType) {
+  const fileRes = await fetch(fileUri);
+  const blob = await fileRes.blob();
+  const res = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': mimeType || 'application/octet-stream' },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+}
+
+export async function sendChatMessageWithAttachments(driverId, { text, attachments, replyToMessageId, senderId, senderRole }) {
+  return apiFetch(`/chat/${driverId}/message`, {
+    method: 'POST',
+    body: JSON.stringify({
+      text: text || null,
+      senderId: senderId || null,
+      senderRole: senderRole || 'driver',
+      replyToMessageId: replyToMessageId || null,
+      attachments: attachments || [],
+    }),
+  });
+}
+
 export async function updateDriverStatus(driverId, status) {
   return apiFetch(`/drivers/${driverId}/status`, {
     method: 'PATCH',

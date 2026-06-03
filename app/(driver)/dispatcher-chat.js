@@ -2,15 +2,22 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, FlatList, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
-  Animated, PanResponder, Alert, Pressable,
+  Animated, PanResponder, Alert, Pressable, Linking, Image as RNImage,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as Clipboard from 'expo-clipboard';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import EmojiPicker from 'rn-emoji-keyboard';
+import { SvgXml } from 'react-native-svg';
+import StickerPicker from '../../src/components/shared/StickerPicker';
+import GifPicker from '../../src/components/shared/GifPicker';
+import { getStickerSvg } from '../../src/data/stickers';
 
 import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth }  from '../../src/context/AuthContext';
@@ -23,6 +30,9 @@ import {
   deleteChatMessage,
   reactToChatMessage,
   removeChatReaction,
+  signChatAttachment,
+  uploadChatAttachment,
+  sendChatMessageWithAttachments,
 } from '../../src/api/main';
 import GradientHeader from '../../src/components/shared/GradientHeader';
 import Icon          from '../../src/components/shared/Icon';
@@ -33,6 +43,10 @@ import VoiceRecorder from '../../src/components/shared/VoiceRecorder';
 import VoiceMessage  from '../../src/components/shared/VoiceMessage';
 import MessageActionsSheet from '../../src/components/shared/MessageActionsSheet';
 import Reactions     from '../../src/components/shared/Reactions';
+import PinnedMessageBar from '../../src/components/shared/PinnedMessageBar';
+import MentionSuggestions from '../../src/components/shared/MentionSuggestions';
+import SharedMediaSheet from '../../src/components/shared/SharedMediaSheet';
+import LinkPreviewCard, { fetchLinkPreview, extractFirstUrl } from '../../src/components/shared/LinkPreviewCard';
 import { gradients, shadow } from '../../src/theme/colors';
 
 // Different presets surface in different phases of the trip. A driver 30m
@@ -60,10 +74,153 @@ const PRESET_SETS = {
   ],
 };
 
+// Mentionable people in the dispatcher chat. In production these would be
+// fetched from the fleet API; here we include the dispatcher + known drivers.
+const MENTION_DRIVERS = [
+  { id: 'dispatcher', name: 'Dispatcher', role: 'Fleet Dispatcher' },
+  { id: 'd1', name: 'James Wilson',   role: 'Driver' },
+  { id: 'd2', name: 'Maria Garcia',   role: 'Driver' },
+  { id: 'd3', name: 'Robert Chen',    role: 'Driver' },
+  { id: 'd4', name: 'Sarah Johnson',  role: 'Driver' },
+  { id: 'd5', name: 'Mike Thompson',  role: 'Driver' },
+  { id: 'd6', name: 'Linda Martinez', role: 'Driver' },
+];
+
+// Regex that matches @Name mentions — capitalised first + optional last word.
+// Intentionally conservative: requires capital first letter so @all or @everyone
+// don't accidentally highlight.
+const MENTION_RE = /@([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)/g;
+
+/**
+ * MentionText — renders message text with @Name mentions highlighted in
+ * the brand teal. Works for both "me" (white) and "them" (themed) bubbles.
+ */
+function MentionText({ text, baseStyle, accentColor = '#5dd0e3', knownNames }) {
+  if (!text) return null;
+  const parts = [];
+  let last = 0;
+  let m;
+  MENTION_RE.lastIndex = 0;
+  while ((m = MENTION_RE.exec(text)) !== null) {
+    if (m.index > last) parts.push({ t: text.slice(last, m.index), mention: false });
+    const isKnown = !knownNames || knownNames.has(m[1]);
+    parts.push({ t: m[0], mention: isKnown });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ t: text.slice(last), mention: false });
+
+  return (
+    <Text style={baseStyle}>
+      {parts.map((p, i) =>
+        p.mention
+          ? <Text key={i} style={[baseStyle, { color: accentColor, fontWeight: '800' }]}>{p.t}</Text>
+          : <Text key={i}>{p.t}</Text>,
+      )}
+    </Text>
+  );
+}
+
 function formatTime(d) {
   const date = d instanceof Date ? d : new Date(d);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
+
+function fmtSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+// Inline attachment renderer. Document = card with name + size; photo/gif =
+// inline image. Tap opens the original via the OS handler (browser / native viewer).
+function AttachmentChip({ att, fromMe, colors, isDark }) {
+  const onOpen = () => {
+    const url = att.url || att.externalUrl;
+    if (url) Linking.openURL(url).catch(() => {});
+  };
+  if (att._pending) {
+    return (
+      <View style={[attStyles.doc, fromMe ? attStyles.docMe : { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.04)' }]}>
+        <ActivityIndicator size="small" color={fromMe ? '#fff' : colors.accent} />
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Text style={[attStyles.name, { color: fromMe ? '#fff' : colors.textPrimary }]} numberOfLines={1}>{att.caption || 'Attachment'}</Text>
+          <Text style={[attStyles.sub, { color: fromMe ? 'rgba(255,255,255,0.7)' : colors.textMuted }]}>Uploading…</Text>
+        </View>
+      </View>
+    );
+  }
+  if (att.kind === 'sticker') {
+    // Built-in stickers ship inline in src/data/stickers.js. caption is "packId/stickerId".
+    const svg = att.caption ? getStickerSvg(att.caption) : null;
+    if (svg) {
+      return <SvgXml xml={svg} width={140} height={140} style={{ marginBottom: 4 }} />;
+    }
+    const src = att.url || att.externalUrl;
+    return src ? <RNImage source={{ uri: src }} style={attStyles.image} accessibilityLabel={att.caption || 'sticker'} /> : null;
+  }
+  if (att.kind === 'video') {
+    const poster = att.thumbnailUrl;
+    return (
+      <Pressable onPress={onOpen} style={attStyles.videoWrap}>
+        {poster ? <RNImage source={{ uri: poster }} style={attStyles.image} /> : <View style={[attStyles.image, { backgroundColor: '#000' }]} />}
+        <View style={attStyles.playOverlay}>
+          <Icon name="send" size={24} color="#fff" />
+        </View>
+        {att.durationSeconds ? (
+          <View style={attStyles.durationBadge}>
+            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+              {Math.floor(att.durationSeconds / 60)}:{String(att.durationSeconds % 60).padStart(2, '0')}
+            </Text>
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  }
+  if (att.kind === 'photo' || att.kind === 'gif') {
+    const src = att.url || att.externalUrl;
+    if (!src) return null;
+    return (
+      <Pressable onPress={onOpen}>
+        <RNImage source={{ uri: src }} style={attStyles.image} accessibilityLabel={att.caption || att.kind} />
+      </Pressable>
+    );
+  }
+  return (
+    <Pressable onPress={onOpen} style={[attStyles.doc, fromMe ? attStyles.docMe : { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.04)' }]}>
+      <View style={[attStyles.icon, { backgroundColor: fromMe ? 'rgba(255,255,255,0.2)' : 'rgba(91,108,255,0.16)' }]}>
+        <Icon name="fileText" size={16} color={fromMe ? '#fff' : '#5b6cff'} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[attStyles.name, { color: fromMe ? '#fff' : colors.textPrimary }]} numberOfLines={1}>
+          {att.caption || 'Document'}
+        </Text>
+        <Text style={[attStyles.sub, { color: fromMe ? 'rgba(255,255,255,0.7)' : colors.textMuted }]} numberOfLines={1}>
+          {[att.mimeType?.split('/')[1]?.toUpperCase(), fmtSize(att.sizeBytes)].filter(Boolean).join(' · ')}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const attStyles = StyleSheet.create({
+  doc:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, marginBottom: 4, minWidth: 200 },
+  docMe:  { backgroundColor: 'rgba(255,255,255,0.18)' },
+  icon:   { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  name:   { fontSize: 13, fontWeight: '600' },
+  sub:    { fontSize: 11, marginTop: 1 },
+  image:  { width: 220, height: 220, borderRadius: 10, marginBottom: 4, backgroundColor: 'rgba(0,0,0,0.05)' },
+  videoWrap: { width: 220, height: 220, borderRadius: 10, marginBottom: 4, overflow: 'hidden', position: 'relative', backgroundColor: '#000' },
+  playOverlay: {
+    position: 'absolute', left: 0, top: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  durationBadge: {
+    position: 'absolute', right: 8, bottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+  },
+});
 
 function normalizeMessages(raw, driverId) {
   return (raw || []).map(m => {
@@ -92,6 +249,7 @@ function normalizeMessages(raw, driverId) {
       replyToMessageId: m.replyToMessageId || null,
       replyTo: m.replyTo || null,
       reactions: Array.isArray(m.reactions) ? m.reactions : null,
+      attachments: Array.isArray(m.attachments) ? m.attachments : null,
     };
   });
 }
@@ -159,6 +317,7 @@ export default function DispatcherChat() {
   const [sending, setSending]   = useState(false);
   const [urgent, setUrgent]     = useState(false);
   const [pendingPhoto, setPendingPhoto] = useState(null);
+  const [pendingDocs, setPendingDocs] = useState([]);     // { id, name, size, mimeType, uri, status, progress }
   const [activeLoad, setActiveLoad] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   // Message interactions
@@ -166,8 +325,28 @@ export default function DispatcherChat() {
   const [replyingTo, setReplyingTo] = useState(null);      // { id, text, type, fromDriver }
   const [editingMessage, setEditingMessage] = useState(null); // { id, originalText }
   const [hiddenForMe, setHiddenForMe] = useState(() => new Set());
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [stickerOpen, setStickerOpen] = useState(false);
+  const [gifOpen, setGifOpen] = useState(false);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
   const inputRef = useRef(null);
   const listRef = useRef(null);
+
+  // ── Phase 2 state ─────────────────────────────────────────────────────────
+  // Pin
+  const [pinnedMessage, setPinnedMessage] = useState(null);
+  // In-chat search
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  // Shared media sheet
+  const [sharedMediaOpen, setSharedMediaOpen] = useState(false);
+  // Link preview
+  const [linkPreview, setLinkPreview] = useState(null);          // { url, title, image, description }
+  const [linkPreviewLoading, setLinkPreviewLoading] = useState(false);
+  const linkPreviewDismissed = useRef(null);   // last URL the user explicitly dismissed
+  const linkFetchTimer = useRef(null);
+  // Known mention names set (for highlight matching)
+  const knownMentionNames = useRef(new Set(MENTION_DRIVERS.map(d => d.name))).current;
 
   // Actor identity sent to the backend — driver's userId + role.
   const me = { id: userId, role: 'driver' };
@@ -223,6 +402,44 @@ export default function DispatcherChat() {
     return () => clearTimeout(t);
   }, [messages.length]);
 
+  // ── Link preview: watch text for URLs, debounced 800ms ────────────────────
+  useEffect(() => {
+    clearTimeout(linkFetchTimer.current);
+    const url = extractFirstUrl(text);
+    if (!url || url === linkPreviewDismissed.current) {
+      // No URL or user already dismissed this one → clear any existing preview.
+      if (!url) {
+        setLinkPreview(null);
+        setLinkPreviewLoading(false);
+      }
+      return;
+    }
+    // Same URL already loaded — don't re-fetch.
+    if (linkPreview?.url === url) return;
+
+    setLinkPreviewLoading(true);
+    linkFetchTimer.current = setTimeout(async () => {
+      const preview = await fetchLinkPreview(url);
+      setLinkPreviewLoading(false);
+      if (preview) {
+        setLinkPreview(preview);
+      } else {
+        // Fetch succeeded but no OG data — treat as dismissed so we don't retry.
+        linkPreviewDismissed.current = url;
+      }
+    }, 800);
+
+    return () => clearTimeout(linkFetchTimer.current);
+  }, [text]);
+
+  // ── Pin handler ────────────────────────────────────────────────────────────
+  const onPin = useCallback((msg) => {
+    setPinnedMessage(prev =>
+      prev && String(prev.id) === String(msg.id) ? null : msg,
+    );
+    Haptics.selectionAsync().catch(() => {});
+  }, []);
+
   // Pick smart presets based on active load + progress
   const presets = (() => {
     if (!activeLoad) return PRESET_SETS.default;
@@ -265,13 +482,20 @@ export default function DispatcherChat() {
       return;
     }
 
-    if (!body && !pendingPhoto) return;
+    if (!body && !pendingPhoto && pendingDocs.length === 0) return;
     if (sending) return;
     Haptics.selectionAsync().catch(() => {});
     if (urgent) body = `!! ${body}`;
-    if (typeof preset !== 'string') setText('');
+    if (typeof preset !== 'string') {
+      setText('');
+      // Clear link preview state when message is sent.
+      setLinkPreview(null);
+      setLinkPreviewLoading(false);
+      linkPreviewDismissed.current = null;
+    }
     const sentPhoto = pendingPhoto;
     setPendingPhoto(null);
+    const docsForSend = pendingDocs;
     const wasUrgent = urgent;
     setUrgent(false);
     const rid = replyingTo?.id;
@@ -280,18 +504,66 @@ export default function DispatcherChat() {
       id: `tmp-${Date.now()}`, fromDriver: true, text: body, time: new Date(),
       sentAt: Date.now(), pending: true, urgent: wasUrgent, photoUri: sentPhoto?.uri,
       replyToMessageId: rid, replyTo: replyContext,
+      attachments: docsForSend.map(d => ({ id: d.id, kind: 'document', caption: d.name, sizeBytes: d.size, mimeType: d.mimeType, _pending: true })),
     };
     setMessages(prev => [...prev, optimistic]);
     setReplyingTo(null);
     setSending(true);
     try {
-      await sendDriverMessage(userId, body, rid);
+      const refs = [];
+      // Photo first so it appears above docs in the bundle.
+      if (sentPhoto) {
+        const mime = sentPhoto.mimeType || 'image/jpeg';
+        const sizeBytes = sentPhoto.fileSize || 0;
+        const signed = await signChatAttachment(userId, { kind: 'photo', mimeType: mime, sizeBytes });
+        await uploadChatAttachment(signed.uploadUrl, sentPhoto.uri, mime);
+        refs.push({
+          storageKey: signed.storageKey,
+          kind: 'photo',
+          mimeType: mime,
+          sizeBytes,
+          width: sentPhoto.width,
+          height: sentPhoto.height,
+        });
+      }
+      for (const doc of docsForSend) {
+        setPendingDocs(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'uploading' } : d));
+        const signed = await signChatAttachment(userId, {
+          kind: 'document',
+          mimeType: doc.mimeType,
+          sizeBytes: doc.size,
+        });
+        await uploadChatAttachment(signed.uploadUrl, doc.uri, doc.mimeType);
+        refs.push({
+          storageKey: signed.storageKey,
+          kind: 'document',
+          mimeType: doc.mimeType,
+          sizeBytes: doc.size,
+          filename: doc.name,
+        });
+      }
+
+      if (refs.length > 0) {
+        await sendChatMessageWithAttachments(userId, {
+          text: body || null,
+          attachments: refs,
+          replyToMessageId: rid,
+          senderId: userId,
+          senderRole: 'driver',
+        });
+        setPendingDocs([]);
+      } else {
+        await sendDriverMessage(userId, body, rid);
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    } catch {
+    } catch (err) {
+      console.warn('send failed', err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      // Leave pendingDocs in place so the user can retry; mark them as errored.
+      setPendingDocs(prev => prev.map(d => ({ ...d, status: 'error' })));
     }
     setSending(false);
-  }, [text, sending, userId, urgent, pendingPhoto, replyingTo, editingMessage, me]);
+  }, [text, sending, userId, urgent, pendingPhoto, pendingDocs, replyingTo, editingMessage, me]);
 
   // ─── Action handlers (long-press → sheet → these) ──────────────────────────
   const onReply = useCallback((msg) => {
@@ -345,11 +617,51 @@ export default function DispatcherChat() {
     }
   }, [me]);
 
+  // 50 MB cap matches the backend's MaxAttachmentBytes — fail fast on the client
+  // so we don't burn upload bandwidth on a doc the server will reject.
+  const MAX_DOC_BYTES = 50 * 1024 * 1024;
+
+  const onAttachDocs = async () => {
+    Haptics.selectionAsync().catch(() => {});
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      if (res.canceled) return;
+      const assets = res.assets || (res.uri ? [res] : []);
+      const accepted = [];
+      for (const a of assets) {
+        if (a.size && a.size > MAX_DOC_BYTES) {
+          Alert.alert('File too large', `"${a.name}" exceeds the 50 MB limit.`);
+          continue;
+        }
+        accepted.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: a.name || 'Document',
+          size: a.size || 0,
+          mimeType: a.mimeType || 'application/octet-stream',
+          uri: a.uri,
+          status: 'pending',
+          progress: 0,
+        });
+      }
+      if (accepted.length) setPendingDocs(prev => [...prev, ...accepted]);
+    } catch (e) {
+      console.warn('document picker failed', e);
+    }
+  };
+
+  const removePendingDoc = (id) => {
+    setPendingDocs(prev => prev.filter(d => d.id !== id));
+  };
+
   const onCamera = async () => {
     Haptics.selectionAsync().catch(() => {});
     Alert.alert(
-      'Attach photo',
-      'How do you want to add a photo?',
+      'Attach media',
+      'What would you like to send?',
       [
         { text: 'Take photo', onPress: async () => {
           const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -357,15 +669,73 @@ export default function DispatcherChat() {
           const r = await ImagePicker.launchCameraAsync({ quality: 0.65, allowsEditing: false });
           if (!r.canceled && r.assets?.[0]) setPendingPhoto(r.assets[0]);
         } },
-        { text: 'Choose from library', onPress: async () => {
+        { text: 'Choose photo', onPress: async () => {
           const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (!perm.granted) return Alert.alert('Library blocked', 'Enable photo library access in Settings.');
           const r = await ImagePicker.launchImageLibraryAsync({ quality: 0.65, allowsEditing: false, mediaTypes: ImagePicker.MediaTypeOptions.Images });
           if (!r.canceled && r.assets?.[0]) setPendingPhoto(r.assets[0]);
         } },
+        { text: 'Choose video', onPress: () => onPickVideo() },
         { text: 'Cancel', style: 'cancel' },
       ],
     );
+  };
+
+  // 60s cap matches the brief — anything longer is a different product (calls).
+  const MAX_VIDEO_SECS = 60;
+
+  const onPickVideo = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return Alert.alert('Library blocked', 'Enable photo library access in Settings.');
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
+      videoMaxDuration: MAX_VIDEO_SECS,
+      quality: 0.7,
+    });
+    if (r.canceled || !r.assets?.[0]) return;
+    const asset = r.assets[0];
+    const durationSec = asset.duration ? Math.round(asset.duration / 1000) : 0;
+    if (durationSec > MAX_VIDEO_SECS + 1) {
+      return Alert.alert('Video too long', `Videos must be ${MAX_VIDEO_SECS}s or less. This one is ${durationSec}s.`);
+    }
+    setSending(true);
+    try {
+      // Generate poster from the first frame so the bubble can render before the
+      // video downloads on the receiver side.
+      const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(asset.uri, { time: 100, quality: 0.7 });
+      const videoMime = asset.mimeType || 'video/mp4';
+      const videoSize = asset.fileSize || 0;
+      const videoSign = await signChatAttachment(userId, { kind: 'video', mimeType: videoMime, sizeBytes: videoSize });
+      const thumbSign = await signChatAttachment(userId, { kind: 'photo', mimeType: 'image/jpeg', sizeBytes: 0 });
+      await Promise.all([
+        uploadChatAttachment(videoSign.uploadUrl, asset.uri, videoMime),
+        uploadChatAttachment(thumbSign.uploadUrl, thumbUri, 'image/jpeg'),
+      ]);
+      await sendChatMessageWithAttachments(userId, {
+        attachments: [{
+          storageKey: videoSign.storageKey,
+          thumbnailKey: thumbSign.storageKey,
+          kind: 'video',
+          mimeType: videoMime,
+          sizeBytes: videoSize,
+          durationSeconds: durationSec,
+          width: asset.width,
+          height: asset.height,
+        }],
+        senderId: userId,
+        senderRole: 'driver',
+        replyToMessageId: replyingTo?.id,
+      });
+      setReplyingTo(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (err) {
+      console.warn('video send failed', err);
+      Alert.alert('Send failed', 'Could not send the video. Please try again.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleVoiceSend = useCallback(async (payload) => {
@@ -420,6 +790,44 @@ export default function DispatcherChat() {
     return false;
   };
 
+  // ── @mention derived state ─────────────────────────────────────────────────
+  // Detect "@partial" at the end of the current input value.
+  // We allow letters, spaces, dots and hyphens after @ so partial last-names work.
+  const mentionMatch = text.match(/@([\w .'-]*)$/);
+  const mentionQuery  = mentionMatch ? mentionMatch[1].toLowerCase().trim() : null;
+  const mentionSuggestions = mentionQuery !== null
+    ? MENTION_DRIVERS.filter(d => d.name.toLowerCase().includes(mentionQuery))
+    : [];
+  // Only show the panel when there's something after the @.
+  const showMentions = mentionQuery !== null && mentionSuggestions.length > 0;
+
+  const onSelectMention = (name) => {
+    // Replace everything from the last @ to end-of-string with "@Name ".
+    const newText = text.replace(/@[\w .'-]*$/, `@${name} `);
+    setText(newText);
+    inputRef.current?.focus();
+  };
+
+  // ── In-chat search: filtered message ids ──────────────────────────────────
+  const searchQueryTrimmed = searchQuery.trim().toLowerCase();
+  const searchMatchIds = searchQueryTrimmed.length >= 2
+    ? new Set(
+        messages
+          .filter(m => (m.text || '').toLowerCase().includes(searchQueryTrimmed))
+          .map(m => String(m.id)),
+      )
+    : null;
+
+  // ── Pinned message scroll helper ───────────────────────────────────────────
+  const scrollToPinned = () => {
+    if (!pinnedMessage || !listRef.current) return;
+    const visibleMessages = messages.filter(m => !hiddenForMe.has(String(m.id)));
+    const idx = visibleMessages.findIndex(m => String(m.id) === String(pinnedMessage.id));
+    if (idx >= 0) {
+      listRef.current.scrollToIndex({ index: idx, animated: true, viewPosition: 0.3 });
+    }
+  };
+
   return (
     <Animated.View
       style={[styles.container, { backgroundColor: colors.pageBg, transform: [{ translateY: dragY }] }]}
@@ -436,13 +844,68 @@ export default function DispatcherChat() {
             </View>
           }
           rightSlot={
-            <View style={styles.statusPill}>
-              <LiveDot color="#10b981" size={6} />
-              <Text style={styles.headerSub}>Active</Text>
+            <View style={styles.headerRight}>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync().catch(() => {}); setSearchOpen(s => !s); setSearchQuery(''); }}
+                style={[styles.headerIconBtn, searchOpen && styles.headerIconBtnActive]}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Search messages"
+              >
+                <Icon name="search" size={15} color="#fff" />
+              </Pressable>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync().catch(() => {}); setSharedMediaOpen(true); }}
+                style={styles.headerIconBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Shared media"
+              >
+                <Icon name="image" size={15} color="#fff" />
+              </Pressable>
+              <View style={styles.statusPill}>
+                <LiveDot color="#10b981" size={6} />
+                <Text style={styles.headerSub}>Active</Text>
+              </View>
             </View>
           }
         />
       </View>
+
+      {/* ── Pinned message bar ─────────────────────────────────────────────── */}
+      <PinnedMessageBar
+        message={pinnedMessage}
+        onDismiss={() => setPinnedMessage(null)}
+        onPress={scrollToPinned}
+        colors={colors}
+        isDark={isDark}
+      />
+
+      {/* ── In-chat search bar ─────────────────────────────────────────────── */}
+      {searchOpen && (
+        <View style={[styles.searchBar, {
+          backgroundColor: isDark ? '#18213a' : colors.surface2,
+          borderBottomColor: colors.border,
+        }]}>
+          <Icon name="search" size={16} color={colors.textMuted} />
+          <TextInput
+            autoFocus
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search messages…"
+            placeholderTextColor={colors.textDisabled}
+            style={[styles.searchInput, { color: colors.textPrimary }]}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 && (
+            <Text style={[styles.searchCount, { color: colors.textMuted }]}>
+              {searchMatchIds?.size ?? 0} found
+            </Text>
+          )}
+          <Pressable onPress={() => { setSearchOpen(false); setSearchQuery(''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="close" size={16} color={colors.textMuted} />
+          </Pressable>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -494,8 +957,20 @@ export default function DispatcherChat() {
               setSheetTarget(item);
             };
 
+            // Highlight row if it matches the current search query.
+            const isSearchMatch = searchMatchIds && searchMatchIds.has(String(item.id));
+
             return (
-              <View style={[styles.msgRow, item.fromDriver && styles.msgRowRight]}>
+              <View style={[
+                styles.msgRow,
+                item.fromDriver && styles.msgRowRight,
+                isSearchMatch && {
+                  backgroundColor: isDark ? 'rgba(1,147,171,0.12)' : 'rgba(1,147,171,0.08)',
+                  borderRadius: 12,
+                  paddingHorizontal: 4,
+                  paddingVertical: 2,
+                },
+              ]}>
                 <Pressable onLongPress={openSheet} delayLongPress={280}>
                   {item.fromDriver ? (
                     <View style={styles.bubbleWithTail}>
@@ -525,7 +1000,7 @@ export default function DispatcherChat() {
                           {hasReply && <ReplyQuoteMe author={replyAuthorLabel} text={replyText} />}
                           <VoiceMessage message={item} fromMe colors={colors} isDark={isDark} />
                         </LinearGradient>
-                      ) : item.text ? (
+                      ) : (item.text || (item.attachments && item.attachments.length > 0)) ? (
                         <LinearGradient
                           colors={item.urgent ? ['#ef4444', '#dc2626'] : gradients.brand}
                           style={[styles.bubble, styles.bubbleMe, item.pending && { opacity: 0.8 }]}
@@ -533,10 +1008,20 @@ export default function DispatcherChat() {
                           end={{ x: 1, y: 1 }}
                         >
                           {hasReply && <ReplyQuoteMe author={replyAuthorLabel} text={replyText} />}
-                          <Text style={styles.bubbleTextMe}>
-                            {item.text.replace(/^!!\s/, '')}
-                            {item.editedAt && <Text style={styles.editedBadge}> (edited)</Text>}
-                          </Text>
+                          {item.attachments?.map(att => (
+                            <AttachmentChip key={att.id} att={att} fromMe colors={colors} isDark={isDark} />
+                          ))}
+                          {item.text ? (
+                            <MentionText
+                              text={item.text.replace(/^!!\s/, '')}
+                              baseStyle={styles.bubbleTextMe}
+                              accentColor="rgba(255,255,255,0.95)"
+                              knownNames={knownMentionNames}
+                            />
+                          ) : null}
+                          {item.editedAt && !tombstoned ? (
+                            <Text style={styles.editedBadge}> (edited)</Text>
+                          ) : null}
                         </LinearGradient>
                       ) : null}
                       {!tombstoned && <View style={[styles.tailMe, item.urgent && { backgroundColor: '#dc2626' }]} />}
@@ -563,10 +1048,20 @@ export default function DispatcherChat() {
                         ) : (
                           <>
                             {hasReply && <ReplyQuoteThem colors={colors} author={replyAuthorLabel} text={replyText} />}
-                            <Text style={[styles.bubbleTextThem, { color: colors.textPrimary }]}>
-                              {item.text}
-                              {item.editedAt && <Text style={[styles.editedBadge, { color: colors.textMuted }]}> (edited)</Text>}
-                            </Text>
+                            {item.attachments?.map(att => (
+                              <AttachmentChip key={att.id} att={att} colors={colors} isDark={isDark} />
+                            ))}
+                            {item.text ? (
+                              <MentionText
+                                text={item.text}
+                                baseStyle={[styles.bubbleTextThem, { color: colors.textPrimary }]}
+                                accentColor={colors.accent}
+                                knownNames={knownMentionNames}
+                              />
+                            ) : null}
+                            {item.editedAt && !tombstoned ? (
+                              <Text style={[styles.editedBadge, { color: colors.textMuted }]}> (edited)</Text>
+                            ) : null}
                           </>
                         )}
                       </View>
@@ -679,6 +1174,57 @@ export default function DispatcherChat() {
         </View>
       ) : null}
 
+      {/* Pending document chips */}
+      {pendingDocs.length > 0 ? (
+        <View style={[styles.photoPreviewBar, { backgroundColor: colors.surface2, borderTopColor: colors.border, flexDirection: 'column', alignItems: 'stretch', gap: 6 }]}>
+          {pendingDocs.map(d => (
+            <View key={d.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={[styles.photoPreviewClose, { backgroundColor: 'rgba(91,108,255,0.16)' }]}>
+                <Icon name="fileText" size={16} color="#5b6cff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.photoPreviewLabel, { color: colors.textPrimary }]} numberOfLines={1}>{d.name}</Text>
+                <Text style={[styles.photoPreviewSub, { color: d.status === 'error' ? '#ef4444' : colors.textMuted }]} numberOfLines={1}>
+                  {d.status === 'uploading'
+                    ? 'Uploading…'
+                    : d.status === 'error'
+                      ? 'Upload failed — tap send to retry'
+                      : `${(d.size / 1024).toFixed(0)} KB`}
+                </Text>
+              </View>
+              <AnimatedPressable onPress={() => removePendingDoc(d.id)} pressedScale={0.85} hapticStyle="light" disabled={d.status === 'uploading'}>
+                <View style={[styles.photoPreviewClose, { opacity: d.status === 'uploading' ? 0.4 : 1 }]}>
+                  <Icon name="close" size={16} color={colors.textMuted} />
+                </View>
+              </AnimatedPressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* ── Link preview ──────────────────────────────────────────────────── */}
+      <LinkPreviewCard
+        preview={linkPreview}
+        loading={linkPreviewLoading}
+        onDismiss={() => {
+          const url = extractFirstUrl(text);
+          if (url) linkPreviewDismissed.current = url;
+          setLinkPreview(null);
+          setLinkPreviewLoading(false);
+        }}
+        colors={colors}
+        isDark={isDark}
+      />
+
+      {/* ── @Mention suggestions ──────────────────────────────────────────── */}
+      <MentionSuggestions
+        suggestions={mentionSuggestions}
+        visible={showMentions}
+        onSelect={onSelectMention}
+        colors={colors}
+        isDark={isDark}
+      />
+
       {/* Input */}
       <View style={[styles.inputBar, {
         borderTopColor: colors.border,
@@ -689,6 +1235,46 @@ export default function DispatcherChat() {
           <AnimatedPressable onPress={onCamera} hapticStyle="light" pressedScale={0.88}>
             <View style={[styles.inputIconBtn, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
               <Icon name="camera" size={18} color={colors.textMuted} />
+            </View>
+          </AnimatedPressable>
+        )}
+        {!isRecording && (
+          <AnimatedPressable onPress={onAttachDocs} hapticStyle="light" pressedScale={0.88}>
+            <View style={[styles.inputIconBtn, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+              <Icon name="fileText" size={18} color={colors.textMuted} />
+            </View>
+          </AnimatedPressable>
+        )}
+        {!isRecording && (
+          <AnimatedPressable
+            onPress={() => { Haptics.selectionAsync().catch(() => {}); setEmojiOpen(true); }}
+            hapticStyle="light"
+            pressedScale={0.88}
+          >
+            <View style={[styles.inputIconBtn, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+              <Icon name="smile" size={18} color={colors.textMuted} />
+            </View>
+          </AnimatedPressable>
+        )}
+        {!isRecording && (
+          <AnimatedPressable
+            onPress={() => { Haptics.selectionAsync().catch(() => {}); setStickerOpen(true); }}
+            hapticStyle="light"
+            pressedScale={0.88}
+          >
+            <View style={[styles.inputIconBtn, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+              <Icon name="star" size={18} color={colors.textMuted} />
+            </View>
+          </AnimatedPressable>
+        )}
+        {!isRecording && (
+          <AnimatedPressable
+            onPress={() => { Haptics.selectionAsync().catch(() => {}); setGifOpen(true); }}
+            hapticStyle="light"
+            pressedScale={0.88}
+          >
+            <View style={[styles.inputIconBtn, { borderColor: colors.border, backgroundColor: colors.surface2, paddingHorizontal: 6 }]}>
+              <Text style={{ fontSize: 10, fontWeight: '900', color: colors.textMuted, letterSpacing: 0.5 }}>GIF</Text>
             </View>
           </AnimatedPressable>
         )}
@@ -714,6 +1300,7 @@ export default function DispatcherChat() {
             ref={inputRef}
             value={text}
             onChangeText={setText}
+            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
             placeholder={urgent ? 'URGENT message…' : 'Message dispatcher…'}
             placeholderTextColor={urgent ? 'rgba(239,68,68,0.8)' : colors.textDisabled}
             style={[styles.input, {
@@ -726,7 +1313,7 @@ export default function DispatcherChat() {
           />
         )}
         {/* While idle: mic button next to send. While recording: full-width recorder bar. */}
-        {(isRecording || (!text.trim() && !pendingPhoto)) && (
+        {(isRecording || (!text.trim() && !pendingPhoto && pendingDocs.length === 0)) && (
           <VoiceRecorder
             onSend={handleVoiceSend}
             onRecordingChange={setIsRecording}
@@ -736,7 +1323,7 @@ export default function DispatcherChat() {
             isDark={isDark}
           />
         )}
-        {!isRecording && (text.trim() || pendingPhoto) && (
+        {!isRecording && (text.trim() || pendingPhoto || pendingDocs.length > 0) && (
           <AnimatedPressable
             disabled={sending}
             onPress={() => send()}
@@ -760,12 +1347,101 @@ export default function DispatcherChat() {
         visible={!!sheetTarget}
         message={sheetTarget}
         fromMe={sheetTarget?.fromDriver === true}
+        isPinned={!!sheetTarget && !!pinnedMessage && String(pinnedMessage.id) === String(sheetTarget?.id)}
         onClose={() => setSheetTarget(null)}
         onReply={() => onReply(sheetTarget)}
         onReact={(emoji) => onToggleReaction(sheetTarget, emoji, false)}
         onCopy={() => onCopy(sheetTarget)}
         onEdit={() => onEdit(sheetTarget)}
         onDelete={(scope) => onDelete(sheetTarget, scope)}
+        onPin={() => onPin(sheetTarget)}
+      />
+
+      <GifPicker
+        visible={gifOpen}
+        onClose={() => setGifOpen(false)}
+        onPick={async (gif) => {
+          try {
+            await sendChatMessageWithAttachments(userId, {
+              attachments: [{
+                kind: 'gif',
+                externalUrl: gif.full,
+                caption: gif.title,
+                width: gif.width,
+                height: gif.height,
+              }],
+              senderId: userId,
+              senderRole: 'driver',
+              replyToMessageId: replyingTo?.id,
+            });
+            setReplyingTo(null);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          } catch (e) {
+            console.warn('gif send failed', e);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+          }
+        }}
+        colors={colors}
+        isDark={isDark}
+      />
+
+      <StickerPicker
+        visible={stickerOpen}
+        onClose={() => setStickerOpen(false)}
+        onPick={async (ref) => {
+          try {
+            await sendChatMessageWithAttachments(userId, {
+              attachments: [{ kind: 'sticker', caption: ref }],
+              senderId: userId,
+              senderRole: 'driver',
+              replyToMessageId: replyingTo?.id,
+            });
+            setReplyingTo(null);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          } catch (e) {
+            console.warn('sticker send failed', e);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+          }
+        }}
+        colors={colors}
+        isDark={isDark}
+      />
+
+      {/* ── Shared Media Sheet ────────────────────────────────────────────── */}
+      <SharedMediaSheet
+        visible={sharedMediaOpen}
+        messages={messages}
+        onClose={() => setSharedMediaOpen(false)}
+        colors={colors}
+        isDark={isDark}
+      />
+
+      <EmojiPicker
+        open={emojiOpen}
+        onClose={() => setEmojiOpen(false)}
+        onEmojiSelected={(e) => {
+          const native = e?.emoji || '';
+          if (!native) return;
+          const safeStart = Math.min(selection.start, text.length);
+          const safeEnd   = Math.min(selection.end,   text.length);
+          const next = text.slice(0, safeStart) + native + text.slice(safeEnd);
+          setText(next);
+          const newPos = safeStart + native.length;
+          setSelection({ start: newPos, end: newPos });
+        }}
+        enableRecentlyUsed
+        enableSearchBar
+        categoryPosition="top"
+        theme={isDark ? {
+          backdrop: 'rgba(0,0,0,0.5)',
+          knob: '#5b6cff',
+          container: '#0c1224',
+          header: '#94a3b8',
+          skinTonesContainer: '#1a2240',
+          category: { icon: '#94a3b8', iconActive: '#5b6cff', container: '#1a2240', containerActive: '#5b6cff' },
+          search: { background: '#1a2240', text: '#f1f5f9', placeholder: '#64748b', icon: '#94a3b8' },
+          emoji: { selected: '#5b6cff' },
+        } : undefined}
       />
     </Animated.View>
   );
@@ -774,6 +1450,18 @@ export default function DispatcherChat() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerAvatar: { width: 40, height: 40, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
+
+  // Header right cluster: icon buttons + status pill
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerIconBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  headerIconBtnActive: {
+    backgroundColor: 'rgba(255,255,255,0.36)',
+  },
+
   statusPill: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 10, paddingVertical: 5,
@@ -782,6 +1470,18 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(16,185,129,0.42)',
   },
   headerSub: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
+
+  // In-chat search bar
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  searchInput: {
+    flex: 1, fontSize: 14, fontWeight: '500',
+    paddingVertical: 0,
+  },
+  searchCount: { fontSize: 11, fontWeight: '600' },
 
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   listContent: { padding: 14, gap: 8, flexGrow: 1 },

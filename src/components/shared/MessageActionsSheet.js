@@ -50,6 +50,16 @@ function PlusIcon({ color = '#64748b' }) {
     </Svg>
   );
 }
+function PinIcon({ color = '#0193ab' }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path d="M9 4h6l1 6-3 2v8l-1 1-1-1v-8L8 10z"
+        stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M9 10h6" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+      <Path d="M12 4V2" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+    </Svg>
+  );
+}
 
 function ActionRow({ icon, label, danger, onPress }) {
   return (
@@ -68,12 +78,12 @@ function ActionRow({ icon, label, danger, onPress }) {
  * Shows quick reactions + a list of contextual actions.
  *
  * Props:
- *   visible, onClose, message, fromMe
- *   onReact(emoji), onReply(), onCopy(), onEdit(), onDelete("me"|"everyone")
+ *   visible, onClose, message, fromMe, isPinned
+ *   onReact(emoji), onReply(), onCopy(), onEdit(), onDelete("me"|"everyone"), onPin()
  */
 export default function MessageActionsSheet({
-  visible, onClose, message, fromMe,
-  onReact, onReply, onCopy, onEdit, onDelete,
+  visible, onClose, message, fromMe, isPinned,
+  onReact, onReply, onCopy, onEdit, onDelete, onPin,
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -126,6 +136,11 @@ export default function MessageActionsSheet({
               <View style={styles.divider} />
 
               <ActionRow icon={<ReplyIcon />} label="Reply" onPress={wrap(onReply)} />
+              <ActionRow
+                icon={<PinIcon color={isPinned ? '#f59e0b' : '#0193ab'} />}
+                label={isPinned ? 'Unpin message' : 'Pin message'}
+                onPress={wrap(onPin)}
+              />
               {isText && (
                 <ActionRow icon={<CopyIcon />} label="Copy text" onPress={wrap(onCopy)} />
               )}
