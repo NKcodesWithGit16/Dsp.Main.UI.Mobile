@@ -624,12 +624,8 @@ export default function DispatcherChat() {
         return next;
       });
     } else if (scope === 'everyone') {
-      // Optimistic tombstone — server confirms with the next poll.
-      setMessages(prev => prev.map(m =>
-        String(m.id) === String(msg.id)
-          ? { ...m, deletedForEveryone: true, text: '', audioUrl: null }
-          : m,
-      ));
+      // Optimistically hide immediately — the message just disappears.
+      setHiddenForMe(prev => { const n = new Set(prev); n.add(String(msg.id)); return n; });
     }
     try {
       await deleteChatMessage(msg.id, scope, me);
@@ -854,7 +850,7 @@ export default function DispatcherChat() {
   // ── Pinned message scroll helper ───────────────────────────────────────────
   const scrollToPinned = () => {
     if (!pinnedMessage || !listRef.current) return;
-    const visibleMessages = messages.filter(m => !hiddenForMe.has(String(m.id)));
+    const visibleMessages = messages.filter(m => !hiddenForMe.has(String(m.id)) && !m.deletedForEveryone);
     const idx = visibleMessages.findIndex(m => String(m.id) === String(pinnedMessage.id));
     if (idx >= 0) {
       listRef.current.scrollToIndex({ index: idx, animated: true, viewPosition: 0.3 });

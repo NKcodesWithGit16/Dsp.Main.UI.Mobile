@@ -223,6 +223,7 @@ export default function DriverChat() {
     const items = [];
     let lastDateStr = null;
     for (const m of messages) {
+      if (m.deletedForEveryone) continue;   // removed messages simply vanish
       const dateStr = m.time.toDateString();
       if (dateStr !== lastDateStr) {
         items.push({ _type: 'date', id: `date-${dateStr}`, label: formatDateLabel(m.time) });
