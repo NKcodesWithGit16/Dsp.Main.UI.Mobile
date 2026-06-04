@@ -250,6 +250,11 @@ function normalizeMessages(raw, driverId) {
       replyTo: m.replyTo || null,
       reactions: Array.isArray(m.reactions) ? m.reactions : null,
       attachments: Array.isArray(m.attachments) ? m.attachments : null,
+      // Read/delivery status (for dispatcher-sent messages status ticks)
+      isRead: !!(m.isRead || m.readAt),
+      readAt: m.readAt || null,
+      deliveredAt: m.deliveredAt || null,
+      delivered: !!(m.delivered || m.deliveredAt),
     };
   });
 }
@@ -301,6 +306,34 @@ function Checkmark({ read, color }) {
           <Icon name="checkmark" size={11} color={color} />
         </View>
       )}
+    </View>
+  );
+}
+
+/**
+ * StatusTick — tiny inline SVG checkmarks for dispatcher-sent messages.
+ * Shows the delivery/read state of each dispatcher message:
+ *   - isRead / readAt      → double tick, teal (#0193ab)
+ *   - deliveredAt/delivered → double tick, gray
+ *   - otherwise            → single tick, gray (sent)
+ */
+function StatusTick({ msg }) {
+  const isRead      = !!(msg.isRead || msg.readAt);
+  const isDelivered = !!(msg.deliveredAt || msg.delivered);
+  const double      = isRead || isDelivered;
+  const color       = isRead ? '#0193ab' : '#94a3b8';
+
+  // Single SVG checkmark path (10×10 viewport matching the existing Checkmark glyph scale)
+  const TickSvg = ({ style }) => (
+    <Svg width={10} height={10} viewBox="0 0 10 10" fill="none" style={style}>
+      <Path d="M2 5.5L4.2 7.8L8 3" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 4 }}>
+      <TickSvg />
+      {double && <TickSvg style={{ marginLeft: -4 }} />}
     </View>
   );
 }
@@ -1094,6 +1127,10 @@ export default function DispatcherChat() {
                   )}
                   {item.fromDriver && item.pending && (
                     <Text style={[styles.time, { color: colors.textMuted, marginLeft: 4 }]}>sending…</Text>
+                  )}
+                  {/* Status ticks for dispatcher-sent messages (fromDriver === false) */}
+                  {!item.fromDriver && !tombstoned && (
+                    <StatusTick msg={item} />
                   )}
                 </View>
               </View>

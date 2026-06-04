@@ -171,7 +171,7 @@ const pillS = StyleSheet.create({
 });
 
 /* ═════ Header ═════ */
-function DriverHeader({ userName, onAvatarTap, colors, isDark }) {
+function DriverHeader({ userName, onAvatarTap, onChatTap, unread, colors, isDark }) {
   const insets = useSafeAreaInsets();
   const initials = userName
     ? userName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -191,11 +191,23 @@ function DriverHeader({ userName, onAvatarTap, colors, isDark }) {
           </View>
         </View>
 
-        <TouchableOpacity onPress={onAvatarTap} activeOpacity={0.85}>
-          <LinearGradient colors={['#0193ab', '#04285a']} style={hdrS.avatarSolo}>
-            <Text style={hdrS.avatarSoloText}>{initials}</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        <View style={hdrS.right}>
+          {/* Chat button with optional unread badge */}
+          <TouchableOpacity onPress={onChatTap} activeOpacity={0.82} style={hdrS.chatBtn}>
+            <Icon name="chat" size={18} color={colors.accent} />
+            {unread > 0 && (
+              <View style={hdrS.chatBadge}>
+                <Text style={hdrS.chatBadgeText}>{unread > 9 ? '9+' : unread}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={onAvatarTap} activeOpacity={0.85}>
+            <LinearGradient colors={['#0193ab', '#04285a']} style={hdrS.avatarSolo}>
+              <Text style={hdrS.avatarSoloText}>{initials}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -204,6 +216,7 @@ const hdrS = StyleSheet.create({
   wrap: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, borderBottomWidth: 1 },
   inner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 10 },
   left: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   logo: { fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
   roleBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
   roleText: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.8 },
@@ -214,6 +227,17 @@ const hdrS = StyleSheet.create({
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
   },
   avatarSoloText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  chatBtn: {
+    width: 36, height: 36, borderRadius: 999,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  chatBadge: {
+    position: 'absolute', top: -2, right: -2,
+    minWidth: 16, height: 16, paddingHorizontal: 4, borderRadius: 8,
+    backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  chatBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
 });
 
 /* ═════ Dropdown menu ═════ */
@@ -1491,6 +1515,13 @@ export default function DriverPortal() {
         <DriverHeader
           userName={userName}
           onAvatarTap={() => { Haptics.selectionAsync(); setMenuOpen(v => !v); }}
+          onChatTap={() => {
+            Haptics.selectionAsync().catch(() => {});
+            setUnread(0);
+            setBanner(null);
+            router.push('/(driver)/chat');
+          }}
+          unread={unread}
           colors={colors}
           isDark={isDark}
         />

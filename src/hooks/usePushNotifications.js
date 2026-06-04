@@ -61,6 +61,16 @@ export function usePushNotifications(userId, onForegroundNotification) {
       const data = response.notification.request.content.data;
       if (data?.type === 'LoadAssigned') {
         router.replace('/(driver)');
+      } else if (data?.type === 'chat' || data?.chatDriverId) {
+        // Driver-side chat tap → open the driver chat screen.
+        // Dispatcher-side chat tap (no chatDriverId on driver tokens) → dispatcher home.
+        if (data?.chatDriverId) {
+          // This notification was sent to a dispatcher device referencing a specific driver.
+          router.push('/(app)/');
+        } else {
+          // Driver device receiving a chat notification → open chat with dispatcher.
+          router.push('/(driver)/chat');
+        }
       }
     });
 
